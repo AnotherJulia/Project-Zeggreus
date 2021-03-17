@@ -1102,12 +1102,12 @@ Wire Wire Line
 $Comp
 L power:+3.3V #PWR025
 U 1 1 5F04ADA4
-P 5500 5600
-F 0 "#PWR025" H 5500 5450 50  0001 C CNN
-F 1 "+3.3V" H 5515 5728 50  0000 L CNN
-F 2 "" H 5500 5600 50  0001 C CNN
-F 3 "" H 5500 5600 50  0001 C CNN
-	1    5500 5600
+P 5600 5600
+F 0 "#PWR025" H 5600 5450 50  0001 C CNN
+F 1 "+3.3V" H 5615 5728 50  0000 L CNN
+F 2 "" H 5600 5600 50  0001 C CNN
+F 3 "" H 5600 5600 50  0001 C CNN
+	1    5600 5600
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
@@ -1934,9 +1934,9 @@ Wire Wire Line
 	7950 5400 7800 5400
 Connection ~ 7800 5400
 Wire Wire Line
-	5500 5600 5500 5650
+	5600 5600 5600 5650
 Wire Wire Line
-	5500 5650 5400 5650
+	5600 5650 5500 5650
 Text GLabel 8450 9000 0    50   Input ~ 0
 LED_G
 Text GLabel 8450 9400 0    50   Input ~ 0
@@ -2980,17 +2980,6 @@ Text Notes 6650 7250 0    50   ~ 0
 18.8V => 3.3V\n4.6mV/LSB
 Text Notes 13050 4400 0    50   ~ 0
 Internal LDO instead of DC/DC:\nReduced BOM/board space\nLess efficient but who cares
-$Comp
-L Jumper:SolderJumper_2_Open JP1
-U 1 1 6110A6BC
-P 5250 5650
-F 0 "JP1" H 5250 5855 50  0000 C CNN
-F 1 "BOOT1" H 5250 5764 50  0000 C CNN
-F 2 "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm" H 5250 5650 50  0001 C CNN
-F 3 "~" H 5250 5650 50  0001 C CNN
-	1    5250 5650
-	1    0    0    -1  
-$EndComp
 Text Notes 4700 5350 0    50   ~ 0
 SWD used primarily.\nBridge if DFU is needed
 $Comp
@@ -3472,8 +3461,6 @@ Wire Wire Line
 	13650 5700 13950 5700
 Wire Wire Line
 	13950 5700 13950 5600
-Wire Wire Line
-	13950 5700 14050 5700
 Connection ~ 13650 5700
 $Comp
 L Connector_Generic:Conn_01x01 J14
@@ -3620,7 +3607,6 @@ Wire Wire Line
 	3850 5000 4000 5000
 Text Notes 7550 7350 0    50   ~ 0
 Reverse Voltage\nProtection
-Connection ~ 13950 5700
 $Comp
 L Connector_Generic:Conn_01x04 J11
 U 1 1 6138DB1F
@@ -3722,7 +3708,7 @@ Wire Wire Line
 	9200 5400 9200 5650
 NoConn ~ 9650 5750
 Wire Wire Line
-	9650 5550 10000 5550
+	9650 5550 9750 5550
 Connection ~ 10000 5550
 Wire Wire Line
 	9250 5650 9200 5650
@@ -3779,4 +3765,41 @@ Wire Wire Line
 	11150 5750 11150 5650
 Wire Wire Line
 	11150 5650 11200 5650
+$Comp
+L Switch:SW_Push SW3
+U 1 1 60415EC8
+P 5300 5650
+F 0 "SW3" H 5300 5935 50  0000 C CNN
+F 1 "boot" H 5300 5844 50  0000 C CNN
+F 2 "starling:SW_Push_SPST_3×4×2" H 5300 5850 50  0001 C CNN
+F 3 "~" H 5300 5850 50  0001 C CNN
+F 4 "C720477" H 5300 5650 50  0001 C CNN "LCSC"
+	1    5300 5650
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	13950 5600 14050 5600
+$Comp
+L Jumper:SolderJumper_2_Open JP1
+U 1 1 6073245B
+P 9450 5250
+F 0 "JP1" H 9450 5455 50  0000 C CNN
+F 1 "SW_bypass" H 9450 5364 50  0000 C CNN
+F 2 "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm" H 9450 5250 50  0001 C CNN
+F 3 "~" H 9450 5250 50  0001 C CNN
+	1    9450 5250
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	9300 5250 9200 5250
+Wire Wire Line
+	9200 5250 9200 5400
+Connection ~ 9200 5400
+Wire Wire Line
+	9600 5250 9750 5250
+Wire Wire Line
+	9750 5250 9750 5550
+Connection ~ 9750 5550
+Wire Wire Line
+	9750 5550 10000 5550
 $EndSCHEMATC
