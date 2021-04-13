@@ -1,0 +1,6 @@
+hw-spi.c:7:6:SpiInit	8	static
+hw-spi.c:30:6:SpiDeInit	8	static
+hw-spi.c:43:6:SpiInOut	24	static
+hw-spi.c:55:6:SpiIn	16	static
+hw-spi.c:66:6:HAL_SPI_TxRxCpltCallback	16	static
+hw-spi.c:71:6:HAL_SPI_TxCpltCallback	16	static

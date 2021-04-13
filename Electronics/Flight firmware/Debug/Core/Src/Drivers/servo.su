@@ -1,0 +1,3 @@
+servo.c:3:6:servo_init	24	static
+servo.c:9:6:servo_writeangle	24	static
+servo.c:15:6:servo_writemicros	16	static
