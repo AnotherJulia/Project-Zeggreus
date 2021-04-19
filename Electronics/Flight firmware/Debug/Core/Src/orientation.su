@@ -1,7 +1,7 @@
-orientation.c:12:6:cross_product	48	static
-orientation.c:18:6:vector_sum	32	static
-orientation.c:24:8:vector_lenSquared	32	static
-orientation.c:28:6:orientation_init	24	static
+orientation.c:12:6:cross_product	24	static
+orientation.c:18:6:vector_sum	24	static
+orientation.c:24:7:vector_lenSquared	16	static
+orientation.c:28:6:orientation_init	16	static
 orientation.c:43:6:orientation_setGyro	16	static
 orientation.c:49:6:orientation_setAcc	16	static
-orientation.c:56:6:orientation_update	120	static
+orientation.c:56:6:orientation_update	72	static

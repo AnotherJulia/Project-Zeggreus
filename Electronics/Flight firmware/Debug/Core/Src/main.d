@@ -48,12 +48,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/SPL06.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/LSM6DSO32.h \
+ C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/SPL06.h \
+ C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/LSM6DSO32.h \
  ../Core/Inc/constants.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/servo.h \
- ../Core/Inc/orientation.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/Quaternion.h
+ C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/servo.h \
+ C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/Quaternion.h \
+ ../Core/Inc/orientation.h
 
 ../Core/Inc/main.h:
 
@@ -163,14 +163,14 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
 
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/SPL06.h:
+C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/SPL06.h:
 
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/LSM6DSO32.h:
+C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/LSM6DSO32.h:
 
 ../Core/Inc/constants.h:
 
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/servo.h:
+C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/servo.h:
+
+C:/Users/elvin/Documents/code/Project-Zeggreus/Electronics/Flight\ firmware/Core/Inc/Drivers/Quaternion.h:
 
 ../Core/Inc/orientation.h:
-
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/Quaternion.h:

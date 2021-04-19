@@ -33,19 +33,19 @@ typedef struct {
     uint8_t rxBuf[8];
 
     int16_t rawGyro[3];
-    double gyroDPS[3];
-    double gyroRPS[3];
-    double gyroDPSOffset[3];
+    float gyroDPS[3];
+    float gyroRPS[3];
+    float gyroDPSOffset[3];
 
     int16_t rawAcc[3];
-    double accGs[3];
-    double accMPS[3];
+    float accGs[3];
+    float accMPS[3];
 
-    double gyroConvDPS;
-    double accConvG;
+    float gyroConvDPS;
+    float accConvG;
 
     int16_t rawTemp;
-    double temp;
+    float temp;
 } lsm6dso;
 
 uint8_t LSM_ReadRegister(lsm6dso *imu, uint8_t addr, uint8_t *data);

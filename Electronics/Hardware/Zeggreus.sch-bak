@@ -3780,12 +3780,12 @@ $EndComp
 Wire Wire Line
 	13950 5600 14050 5600
 $Comp
-L Jumper:SolderJumper_2_Open JP?
+L Jumper:SolderJumper_2_Open JP1
 U 1 1 6073245B
 P 9450 5250
-F 0 "JP?" H 9450 5455 50  0000 C CNN
+F 0 "JP1" H 9450 5455 50  0000 C CNN
 F 1 "SW_bypass" H 9450 5364 50  0000 C CNN
-F 2 "" H 9450 5250 50  0001 C CNN
+F 2 "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm" H 9450 5250 50  0001 C CNN
 F 3 "~" H 9450 5250 50  0001 C CNN
 	1    9450 5250
 	1    0    0    -1  
