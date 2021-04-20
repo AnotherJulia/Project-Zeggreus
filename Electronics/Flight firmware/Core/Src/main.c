@@ -289,22 +289,23 @@ void loraTesting(uint8_t isTx) {
 
     SetBufferBaseAddresses(0,0); // 127
     HAL_Delay(1);
-    SetModulationParams(0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW, CR 4/5
+    SetModulationParams(0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW (0x0A), CR 4/5
     HAL_Delay(1);
 
     WriteRegisterByte( 0x925, 0x32 ); // must be used for SF9-12. Different for 5-8 (page 112)
 
     HAL_Delay(1);
-    SetPacketParamsLora(0b00010011, 0x80, 32, 0x20, 0x00); // 12 symbol preamble, implicit header, 32 byte payload, CRC enabled, inverted IQ
+    SetPacketParamsLora(12, 0x80, 32, 0x20, 0x40); // 12 symbol preamble, implicit header, 32 byte payload, CRC enabled, Normal IQ
     HAL_Delay(1);
     // testing: set to -12 dBm
 
     if (isTx) {
         //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
-        SetTxParams(0x00, 0xE0); // lowest power -18dBm
+        //SetTxParams(0x00, 0xE0); // lowest power -18dBm
+        SetTxParams(31, 0xE0); // Highest power. 12.5 dBm
         HAL_Delay(3);
 
-        uint8_t data[] = {0,100,0,0};
+        uint8_t data[] = {0,0,0,0};
 
         WriteBuffer(0, data, sizeof(data));
         HAL_Delay(1);
@@ -314,10 +315,15 @@ void loraTesting(uint8_t isTx) {
         //SetTxContinuousWave();
         HAL_Delay(3);
 
+        uint8_t ledon = 0;
+
         while (1) {
-            data[1] = (rand()%5) * 30;
-            data[2] = (rand()%5) * 30;
-            data[3] = (rand()%5) * 30;
+            ledon = !ledon;
+            //data[1] = (rand()%5) * 30;
+            //data[2] = (rand()%5) * 30;
+            //data[3] = (rand()%5) * 30;
+            data[2] = ledon * 100;
+
             changeLed(data[1], data[2], data[3]);
 
             WriteBuffer(0, data, sizeof(data));
@@ -386,7 +392,7 @@ void loraOrientation(uint8_t isTx) {
 
     SetBufferBaseAddresses(0,0); // 127
     HAL_Delay(1);
-    SetModulationParams(0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW, CR 4/5
+    SetModulationParams(0x90, 0x18, 0x01); // Spreading factor 9, 800 BW, CR 4/5
     HAL_Delay(1);
 
     WriteRegisterByte( 0x925, 0x32 ); // must be used for SF9-12. Different for 5-8 (page 112)
@@ -832,13 +838,13 @@ int main(void)
 
 
     //BWtest();
-    uint8_t is_tx = 1;
-    //loraTesting(is_tx);
-    loraOrientation(is_tx);
+    uint8_t is_tx = 0;
+    loraTesting(is_tx);
+    //loraOrientation(is_tx);
 
     // LSM6dso setup
     lsm6dso imu;
-    uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);_
+    uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);
 
     SPL06 baro;
     uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
