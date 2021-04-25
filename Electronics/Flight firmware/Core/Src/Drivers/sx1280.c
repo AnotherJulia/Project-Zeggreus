@@ -1,6 +1,6 @@
 #include <string.h>
 #include "sx1280.h"
-#include "sx1280-hal.h"
+//#include "sx1280-hal.h"
 #include "rangingcorrection.h"
 
 

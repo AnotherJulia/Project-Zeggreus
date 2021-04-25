@@ -1,5 +1,5 @@
-Core/Src/Drivers/hw-spi.o: ../Core/Src/Drivers/hw-spi.c \
- ../Core/Src/Drivers/hw.h \
+Core/Src/stm32f4xx_hal_timebase_tim.o: \
+ ../Core/Src/stm32f4xx_hal_timebase_tim.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h \
  ../Core/Inc/stm32f4xx_hal_conf.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h \
@@ -20,9 +20,13 @@ Core/Src/Drivers/hw-spi.o: ../Core/Src/Drivers/hw-spi.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h \
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h \
@@ -30,14 +34,7 @@ Core/Src/Drivers/hw-spi.o: ../Core/Src/Drivers/hw-spi.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h \
- ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h \
- ../Core/Inc/stm32f4xx_it.h ../Core/Src/Drivers/hw-spi.h \
- ../Core/Src/Drivers/hw-uart.h ../Core/Src/Drivers/hw-gpio.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/sx1280.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/sx1280-hal.h \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Src/Drivers/hw.h
-
-../Core/Src/Drivers/hw.h:
+ ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 
@@ -79,11 +76,19 @@ Core/Src/Drivers/hw-spi.o: ../Core/Src/Drivers/hw-spi.c \
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h:
 
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h:
+
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h:
+
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h:
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h:
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h:
+
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h:
+
+../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h:
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h:
 
@@ -100,17 +105,3 @@ Core/Src/Drivers/hw-spi.o: ../Core/Src/Drivers/hw-spi.c \
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h:
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h:
-
-../Core/Inc/stm32f4xx_it.h:
-
-../Core/Src/Drivers/hw-spi.h:
-
-../Core/Src/Drivers/hw-uart.h:
-
-../Core/Src/Drivers/hw-gpio.h:
-
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/sx1280.h:
-
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/sx1280-hal.h:
-
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Src/Drivers/hw.h:

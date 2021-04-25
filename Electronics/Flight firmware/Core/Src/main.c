@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "fatfs.h"
 #include "usb_device.h"
 
@@ -62,6 +63,8 @@ SPI_HandleTypeDef hspi3;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
+osThreadId ledTaskHandle;
+osThreadId musicTaskHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -76,6 +79,9 @@ static void MX_TIM2_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C3_Init(void);
 static void MX_ADC1_Init(void);
+void StartLedTask(void const * argument);
+void StartMusicTask(void const * argument);
+
 /* USER CODE BEGIN PFP */
 
 void playtone(uint16_t freq, uint16_t ms, uint8_t vol);
@@ -810,7 +816,6 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM3_Init();
-  MX_USB_DEVICE_Init();
   MX_SPI2_Init();
   MX_SPI3_Init();
   MX_TIM2_Init();
@@ -839,7 +844,7 @@ int main(void)
 
     //BWtest();
     uint8_t is_tx = 0;
-    loraTesting(is_tx);
+    //loraTesting(is_tx);
     //loraOrientation(is_tx);
 
     // LSM6dso setup
@@ -875,6 +880,39 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of ledTask */
+  osThreadDef(ledTask, StartLedTask, osPriorityBelowNormal, 0, 128);
+  ledTaskHandle = osThreadCreate(osThread(ledTask), NULL);
+
+  /* definition and creation of musicTask */
+  osThreadDef(musicTask, StartMusicTask, osPriorityIdle, 0, 128);
+  musicTaskHandle = osThreadCreate(osThread(musicTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
     while (1) {
@@ -1433,6 +1471,38 @@ void playtone(uint16_t freq, uint16_t ms, uint8_t vol) {
     htim3.Instance->CCR4 = ledB;
 }
 
+void playtoneRTOS(uint16_t freq, uint16_t ms, uint8_t vol) {
+
+    // 90MHz / (90 * ARR) = freq
+    // 90MHz / (90 * freq) = ARR
+    // 1MHz/(freq) = AAR
+
+    // save LED's
+    uint16_t ledR = htim3.Instance->CCR3;
+    uint16_t ledG = htim3.Instance->CCR1;
+    uint16_t ledB = htim3.Instance->CCR4;
+
+    uint32_t aar_val = 1e6 / (freq);
+    htim3.Instance->CNT = 0;
+    htim3.Instance->ARR = aar_val;
+    htim3.Instance->CCR2 = aar_val * vol / (2 * 100);
+    // same LED brightness
+    htim3.Instance->CCR3 = (aar_val * ledR) / 256;
+    htim3.Instance->CCR1 = (aar_val * ledG) / 256;
+    htim3.Instance->CCR4 = (aar_val * ledB) / 256;
+
+    osDelay(ms);
+
+    // reset to defaults
+    htim3.Instance->CCR2 = 0;
+    htim3.Instance->ARR = 256 - 1;
+
+    // back to normal LED
+    htim3.Instance->CCR3 = ledR;
+    htim3.Instance->CCR1 = ledG;
+    htim3.Instance->CCR4 = ledB;
+}
+
 void changeLed(uint8_t ledR, uint8_t ledG, uint8_t ledB) {
     htim3.Instance->CCR3 = ledR;
     htim3.Instance->CCR1 = ledG;
@@ -1630,6 +1700,71 @@ void ksp() {
 }
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartLedTask */
+/**
+  * @brief  Function implementing the ledTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartLedTask */
+void StartLedTask(void const * argument)
+{
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+      changeLed(0, 100, 0);
+      osDelay(1000);
+      changeLed(0, 0, 100);
+      osDelay(1000);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartMusicTask */
+/**
+* @brief Function implementing the musicTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMusicTask */
+void StartMusicTask(void const * argument)
+{
+  /* USER CODE BEGIN StartMusicTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    playtoneRTOS(587, 100, 10);
+    osDelay(412);
+    playtoneRTOS(932, 100, 10);
+    osDelay(412);
+  }
+  /* USER CODE END StartMusicTask */
+}
+
+ /**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

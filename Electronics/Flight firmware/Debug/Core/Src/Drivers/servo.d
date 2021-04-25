@@ -1,5 +1,5 @@
 Core/Src/Drivers/servo.o: ../Core/Src/Drivers/servo.c \
- C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/servo.h \
+ ../Core/Inc/Drivers/servo.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h \
  ../Core/Inc/stm32f4xx_hal_conf.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h \
@@ -36,7 +36,7 @@ Core/Src/Drivers/servo.o: ../Core/Src/Drivers/servo.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h
 
-C:/Users/elvin/STM32CubeIDE/workspace_1.4.0/starling\ startup/Core/Inc/Drivers/servo.h:
+../Core/Inc/Drivers/servo.h:
 
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 
