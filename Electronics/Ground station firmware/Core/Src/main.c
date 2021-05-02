@@ -331,18 +331,20 @@ void loraTesting(uint8_t isTx) {
         }
     }
     else {
-        // rx mode
+        // rx mode, reception
         SetDioIrqParams(1<<1, 1<<1, 0, 0); //rxdone on gpio1
         HAL_Delay(1);
 
 
-        uint8_t data[32];
+        float data[5];
         data[0] = 60;
         data[1] = 60;
         data[2] = 60;
         uint8_t rxStartBufferPointer = 1;
+        char printBuffer[128];
 
         uint8_t counter = 0;
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin,GPIO_PIN_SET);
 
         while (1) {
 
@@ -359,7 +361,27 @@ void loraTesting(uint8_t isTx) {
             //GetRxBufferStatus(); // TODO
             ReadBuffer(rxStartBufferPointer, 32, data);
 
+
+            counter++;
+
+            if (counter % 20 == 0) {
+
+                sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
+                        data[1], data[2], data[3]);
+                //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
+                CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+
+                WriteBuffer(0, (uint8_t*) data, sizeof(data));
+                HAL_Delay(1);
+                ClrIrqStatus(1); // clear txdone irq
+                HAL_Delay(1);
+                SetTx(0x02, 50); // time-out of 1ms * 50 = 50ms
+            }
+
+//
+
             HAL_Delay(10);
+
 
         }
 
@@ -404,22 +426,21 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-  //loraTesting(1);
+  //loraTesting(0);
 
-
-  char printBuffer[128];
   HAL_Delay(200);
   /* USER CODE END 2 */
-
+  char printBuffer[128];
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    sprintf(printBuffer, "SD CARD TEST!\r\n");
+	  sprintf(printBuffer,"/*Project Zeggreus,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10*/");
+	  CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+	  HAL_Delay(500);
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
-    CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
-    HAL_Delay(500);
-    HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
