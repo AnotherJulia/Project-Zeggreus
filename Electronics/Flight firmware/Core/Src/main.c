@@ -375,6 +375,12 @@ void loraTesting(uint8_t isTx) {
             //GetRxBufferStatus(); // TODO
             ReadBuffer(rxStartBufferPointer, 32, data);
             changeLed(data[1], data[2], data[3]);
+            if (data[2]){
+                htim2.Instance->CCR4 = 1000;
+            }
+            else {
+                htim2.Instance->CCR4 = 2000;
+            }
 
             HAL_Delay(10);
 
@@ -415,7 +421,7 @@ void loraOrientation(uint8_t isTx) {
 
     if (isTx) {
         //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
-        SetTxParams(0x00, 0xE0); // lowest power -18dBm
+        SetTxParams(0x1F, 0xE0); // lowest power -18dBm
         HAL_Delay(3);
 
         lsm6dso imu;
@@ -442,6 +448,7 @@ void loraOrientation(uint8_t isTx) {
         uint32_t lasttime = HAL_GetTick();
         uint32_t nowtime = HAL_GetTick();
         float dt = 0;
+        changeLed(100, 100, 100);
 
         while (1) {
 
@@ -829,7 +836,10 @@ int main(void) {
 
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-    startupMusic();
+    /* init code for USB_DEVICE */
+    MX_USB_DEVICE_Init();
+
+    infiniteKSP();
 
     changeLed(90, 0, 0);
 
@@ -842,8 +852,8 @@ int main(void) {
     //BWtest();
     uint8_t is_tx = 0;
     //loraTesting(is_tx);
-    //loraOrientation(is_tx);
-    servoToggleTest();
+    loraOrientation(is_tx);
+    //servoToggleTest();
 
     // LSM6dso setup
     lsm6dso imu;
@@ -897,6 +907,7 @@ int main(void) {
 
     /* Create the thread(s) */
     /* definition and creation of ledTask */
+
     osThreadDef(ledTask, StartLedTask, osPriorityBelowNormal, 0, 128);
     ledTaskHandle = osThreadCreate(osThread(ledTask), NULL);
 
@@ -913,7 +924,7 @@ int main(void) {
     /* USER CODE END RTOS_THREADS */
 
     /* Start scheduler */
-    osKernelStart();
+    //osKernelStart();
 
     /* We should never get here as control is now taken by the scheduler */
     /* Infinite loop */
@@ -921,6 +932,7 @@ int main(void) {
     while (1) {
 
         /* USER CODE END WHILE */
+
 
         /* USER CODE BEGIN 3 */
         //SPL06_Read(&baro);
@@ -1656,7 +1668,7 @@ void rick() {
 }
 
 void ksp() {
-    int vol = 20;
+    int vol = 100;
     playtone(659, 1000, vol); // EHigh
     playtone(523, 1000, vol); //
     playtone(783, 1000, vol);
@@ -1689,8 +1701,6 @@ void ksp() {
  */
 /* USER CODE END Header_StartLedTask */
 void StartLedTask(void const *argument) {
-    /* init code for USB_DEVICE */
-    MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 5 */
     /* Infinite loop */
     for (;;) {
@@ -1733,7 +1743,7 @@ void startStateMachine(void const *argument) {
     /* Infinite loop */
     for (;;) {
 
-        osDelay(1);
+        osDelay(100);
     }
     /* USER CODE END startStateMachine */
 }
