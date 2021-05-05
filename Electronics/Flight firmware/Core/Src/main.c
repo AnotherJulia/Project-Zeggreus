@@ -346,7 +346,7 @@ void loraTesting(uint8_t isTx) {
             HAL_Delay(500);
         }
     } else {
-        // rx mode
+        // rx mode aka is receiving stuff
         SetDioIrqParams(1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
         HAL_Delay(1);
 
