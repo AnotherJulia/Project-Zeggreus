@@ -78,10 +78,6 @@ void Error_Handler(void);
 #define SD_DETECT_GPIO_Port GPIOB
 #define LORA_RESET_Pin GPIO_PIN_6
 #define LORA_RESET_GPIO_Port GPIOB
-#define BREAKWIRE_Pin GPIO_PIN_8
-#define BREAKWIRE_GPIO_Port GPIOB
-#define ARM_Pin GPIO_PIN_9
-#define ARM_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 #define SD_SPI_HANDLE hspi1
 /* USER CODE END Private defines */

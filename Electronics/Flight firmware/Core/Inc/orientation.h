@@ -24,18 +24,6 @@ typedef struct {
     Quaternion horQuat;
 } Orientation;
 
-typedef struct {
-    Quaternion orientationQuawt;
-    Quaternion orientationQuatConj;
-    Quaternion incrementalRotation;
-    Quaternion incrementalRoetation;
-    Quaternion gyroQuat;
-    Quaternion accQuat;
-    float eulerZYX[12];
-    Quaternion horQuat;
-} testOrientation;
-
-
 void cross_product(float a[3], float b[3], float output[3]);
 void vector_sum(float a[3], float b[3], float output[3]);
 
