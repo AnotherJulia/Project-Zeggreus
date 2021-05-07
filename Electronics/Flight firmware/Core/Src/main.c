@@ -40,11 +40,54 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum {
+    FLIGHT_ERROR     = 0,
+    SYSTEMS_CHECK   = 1,
+    IDLE            = 2,
+    PREPARATION     = 3,
+    ARMED           = 4,
+    LAUNCHED        = 5,
+    DEPLOYED        = 6,
+    LANDED          = 7,
+} state_type;
+
+static state_type flight_state = SYSTEMS_CHECK;
+
+typedef enum {
+    REPEAT_BEEP     = 0,
+    KSP_MAIN        = 1,
+    RICK            = 2,
+    JINGLEBELL      = 3,
+} buzzer_sound;
+
+static buzzer_sound buzzer_setting = KSP_MAIN;
+static uint16_t buzzer_delay = 1000;
+
+// extra (TODO):
+uint32_t last_logged_deploy_time = 0;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+// * 20 ms
+#define BEEP_SHORT 12
+#define BEEP_NORMAL 25
+#define BEEP_LONG 50
+#define BEEP_FOREVER 0xFF
+
+#define VBAT_CALIBRATION 0.00456783157 // Based on schematic: 0.004592
+
+// Flight settings:
+#define MIN_DEPLOY_TIME 10000 // 10 seconds
+#define MAX_DEPLOY_TIME 14000 // 14 seconds
+
+#define BATTERY_EMPTY_LIMIT 5 //7.2 // volts
+#define SERVO_CLOSED_POSITION 0 // degrees
+#define SERVO_DEPLOY_POSITION 180 // degrees
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -95,6 +138,34 @@ void jingleBell();
 void rick();
 void ksp();
 
+float get_battery_voltage() {
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 100);
+    float voltage = ((float) HAL_ADC_GetValue(&hadc1)) * VBAT_CALIBRATION;
+    return voltage;
+}
+
+uint8_t is_armed() {
+    return HAL_GPIO_ReadPin(ARM_GPIO_Port, ARM_Pin); // High corresponds to disconected = armed
+}
+
+uint8_t is_breakwire_connected () {
+    return !HAL_GPIO_ReadPin(BREAKWIRE_GPIO_Port, BREAKWIRE_Pin);
+}
+
+void buzzer_beep(uint8_t delayval){
+    buzzer_setting = REPEAT_BEEP;
+    buzzer_delay = delayval*20;
+
+}
+
+void set_status_led (uint8_t status_state) {
+    // TODO
+}
+
+uint8_t is_vote_asserted() {
+    // Todo
+}
 
 void loraTesting(uint8_t isTx) {
 
@@ -617,6 +688,7 @@ int main(void)
 
     //infiniteKSP();
     startupMusic();
+    //while (1) {rick();}
 
     changeLed(90, 0, 0);
 
@@ -627,10 +699,12 @@ int main(void)
     HAL_Delay(500);
 
     //BWtest();
-    uint8_t is_tx = 0;
+    uint8_t is_tx = 1;
     //loraTesting(is_tx);
-    //loraOrientation(is_tx);
-    //servoToggleTest();
+    // setting to go into ground station mode
+    if (!is_tx) {
+        loraOrientation(is_tx);
+    }
     //servoToggleTest();
 
     // LSM6dso setup
@@ -870,7 +944,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  sConfig.Channel = ADC_CHANNEL_12;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -1516,9 +1590,9 @@ void StartLedTask(void const * argument)
   /* USER CODE BEGIN 5 */
     /* Infinite loop */
     for (;;) {
-        changeLed(0, 100, 0);
+        //changeLed(0, 100, 0);
         osDelay(1000);
-        changeLed(0, 0, 100);
+        //changeLed(0, 0, 100);
         osDelay(1000);
     }
   /* USER CODE END 5 */
@@ -1537,9 +1611,9 @@ void StartMusicTask(void const * argument)
     /* Infinite loop */
     for (;;) {
         playtoneRTOS(587, 100, 3);
-        osDelay(412);
+        osDelay(buzzer_delay);
         playtoneRTOS(932, 100, 3);
-        osDelay(412);
+        osDelay(buzzer_delay);
     }
   /* USER CODE END StartMusicTask */
 }
@@ -1554,10 +1628,150 @@ void StartMusicTask(void const * argument)
 void startStateMachine(void const * argument)
 {
   /* USER CODE BEGIN startStateMachine */
+
+    uint32_t launchTime = osKernelSysTick();
+    uint32_t currentTime = osKernelSysTick();
+    uint32_t timeSinceLaunch = 0;
+
+    Servo deployServo;
+    servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
+    servo_disable(&deployServo);
+
     /* Infinite loop */
     for (;;) {
 
-        osDelay(100);
+        currentTime = osKernelSysTick();
+        timeSinceLaunch = currentTime - launchTime;
+
+
+        switch (flight_state) {
+        case FLIGHT_ERROR:
+            // be annoying TODO
+            //if (!buzzer_queue_length()) {
+            //    buzzer_beep(BEEP_LONG);
+            //}
+            buzzer_beep(BEEP_LONG);
+
+            // exit the state once we're no longer armed,
+            // if battery voltage is in good state
+            // and if there's a squib connected if one is necessary
+            changeLed(0, 0, 0);
+            if (!is_armed() && get_battery_voltage() > BATTERY_EMPTY_LIMIT) {
+
+                //buzzer_beep(BEEP_SHORT);
+                //buzzer_beep(BEEP_SHORT);
+                //set_status_led(ON);
+                flight_state = IDLE;
+            }
+            break;
+
+        case SYSTEMS_CHECK:
+            // this state is the entry state, it performs startup checking of some peripherals
+            changeLed(100, 0, 0);
+            // close the servo if necessary
+            servo_writeangle(&deployServo, SERVO_CLOSED_POSITION);
+
+            // check if the battery is empty
+            // also, check if there's a squib connected if we're configured for one.
+            if (get_battery_voltage() <= BATTERY_EMPTY_LIMIT) {
+
+                flight_state = ERROR;
+                break;
+            }
+
+            // if everything's okay, go into idle
+            buzzer_beep(BEEP_SHORT);
+            buzzer_beep(BEEP_SHORT);
+            set_status_led(1);
+            flight_state = IDLE;
+            break;
+
+        case IDLE:
+            changeLed(0, 100, 0);
+            if (is_armed()) {
+                flight_state = ERROR;
+                break;
+            }
+
+            if (is_breakwire_connected()) {
+                buzzer_beep(BEEP_SHORT);
+                buzzer_beep(BEEP_SHORT);
+                set_status_led(0);
+                flight_state = PREPARATION;
+                break;
+            }
+            break;
+
+        case PREPARATION:
+            changeLed(0, 0, 100);
+            if (!is_breakwire_connected()) {
+                buzzer_beep(BEEP_LONG);
+                set_status_led(1);
+                flight_state = IDLE;
+                break;
+            }
+
+            if (is_armed()) {
+                buzzer_beep(BEEP_SHORT);
+                buzzer_beep(BEEP_SHORT);
+                set_status_led(1);
+                flight_state = ARMED;
+            }
+            break;
+
+        case ARMED:
+            changeLed(100, 100, 0);
+            if (!is_armed()) {
+                buzzer_beep(BEEP_LONG);
+                set_status_led(0);
+                flight_state = PREPARATION;
+                break;
+            }
+
+            if (!is_breakwire_connected()) {
+                //reset_timer();
+
+                launchTime = currentTime;
+
+                //set_launch_asserted(ON);
+                flight_state = LAUNCHED;
+                break;
+            }
+            break;
+
+        case LAUNCHED:
+            changeLed(100, 100, 100);
+            //if (!buzzer_queue_length()) {
+            //    buzzer_beep(BEEP_SHORT);
+            //}
+            buzzer_beep(BEEP_SHORT);
+
+            if (timeSinceLaunch >= MAX_DEPLOY_TIME
+                    || (timeSinceLaunch >= MIN_DEPLOY_TIME && is_vote_asserted())) {
+
+                servo_writeangle(&deployServo, SERVO_DEPLOY_POSITION);
+
+                last_logged_deploy_time = timeSinceLaunch;
+                flight_state = DEPLOYED;
+                break;
+            }
+
+            break;
+
+        case DEPLOYED:
+            changeLed(100, 0, 100);
+            //if (!buzzer_queue_length()) {
+            //    buzzer_beep(BEEP_LONG);
+            //}
+            buzzer_beep(BEEP_LONG);
+
+            break;
+
+        case LANDED:
+            break;
+        }
+
+        osDelay(1);
     }
   /* USER CODE END startStateMachine */
 }
@@ -1625,7 +1839,7 @@ void StartTelemTask(void const * argument)
         counter++;
 
         if (counter % 20 == 0) {
-            data[0] = ori.orientationQuat.w;
+            data[0] = get_battery_voltage(); //ori.orientationQuat.w;
             data[1] = ori.orientationQuat.v[0];
             data[2] = ori.orientationQuat.v[1];
             data[3] = ori.orientationQuat.v[2];
