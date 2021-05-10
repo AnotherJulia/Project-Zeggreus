@@ -1,6 +1,6 @@
 #include "servo.h"
 
-void servo_init(Servo *servo, TIM_HandleTypeDef *tim, uint32_t *timerval) {
+void servo_init(Servo *servo, TIM_HandleTypeDef *tim, volatile uint32_t *timerval) {
     servo->timer = tim;
     servo->timerval = timerval;
 }
@@ -14,4 +14,8 @@ void servo_writeangle(Servo *servo, uint8_t angle) {
 
 void servo_writemicros(Servo *servo, uint32_t pulse) {
     *servo->timerval = pulse;
+}
+
+void servo_disable(Servo *servo) {
+    *servo->timerval = 0;
 }
