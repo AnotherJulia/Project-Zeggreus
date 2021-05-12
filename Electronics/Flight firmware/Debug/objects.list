@@ -3,6 +3,7 @@
 "Core/Src/Drivers/servo.o"
 "Core/Src/Drivers/sx1280.o"
 "Core/Src/Drivers/sx1280_custom.o"
+"Core/Src/Drivers/telemetry.o"
 "Core/Src/Quaternion.o"
 "Core/Src/freertos.o"
 "Core/Src/main.o"

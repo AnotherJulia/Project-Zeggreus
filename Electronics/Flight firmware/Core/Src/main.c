@@ -35,6 +35,7 @@
 #include "servo.h"
 #include "Quaternion.h"
 #include "orientation.h"
+#include "telemetry.h"
 
 /* USER CODE END Includes */
 
@@ -57,13 +58,13 @@ typedef enum {
     REPEAT_BEEP = 0, KSP_MAIN = 1, RICK = 2, JINGLEBELL = 3,
 } buzzer_sound;
 
-static buzzer_sound buzzer_setting = RICK;
+static buzzer_sound buzzer_setting = KSP_MAIN;
 static uint16_t buzzer_delay = 1000;
 
 // extra (TODO):
 uint32_t last_logged_deploy_time = 0;
 
-// Music
+// Music (Rick Astley)
 
 #define  a3f    208     // 208 Hz
 #define  b3f    233     // 233 Hz
@@ -109,6 +110,14 @@ static uint16_t song1_chorus_melody[] = { b4f, b4f, a4f, a4f, f5, f5, e5f, b4f,
 static uint16_t song1_chorus_rhythmn[] = { 1, 1, 1, 1, 3, 3, 6, 1, 1, 1, 1, 3,
         3, 3, 1, 2, 1, 1, 1, 1, 3, 3, 3, 1, 2, 2, 2, 4, 8, 1, 1, 1, 1, 3, 3, 6,
         1, 1, 1, 1, 3, 3, 3, 1, 2, 1, 1, 1, 1, 3, 3, 3, 1, 2, 2, 2, 4, 8, 4 };
+
+// Music (KSP main theme)
+
+static uint16_t ksp_tunes[] = {659, 523, 783, 523, 659, 784, 932, 880, 784, 523, 659, 784, 932, 880, 784, 523, 587, 698, 587, 523};
+static uint16_t ksp_delays[] = {1000, 1000, 1000, 333, 333, 333, 1000, 1000, 1000, 333, 333, 333, 1000, 1000, 1000, 1000, 1000, 2000, 500, 500};
+
+
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -228,7 +237,8 @@ uint8_t is_vote_asserted() {
 void loraTesting(uint8_t isTx) {
 
     sx1280_custom radio;
-    sxInit(&radio, &hspi1, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+    sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+
 
     if (isTx) {
         //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
@@ -316,7 +326,7 @@ void loraOrientation(uint8_t isTx) {
     sx1280_custom radio;
 
     sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
-    sxSetDio1Pin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
+    sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
 
     float data[4];
 
@@ -1650,7 +1660,7 @@ void StartMusicTask(void const * argument)
   /* USER CODE BEGIN StartMusicTask */
     /* Infinite loop */
 
-    uint16_t vol = 10;
+    uint16_t vol = 1; // 10
     uint16_t beatlength = 50; // determines tempo
     float beatseparationconstant = 0.3;
 
@@ -1660,6 +1670,9 @@ void StartMusicTask(void const * argument)
 
     osEvent messagebox;
     uint16_t sounddelay;
+
+    int ksp_playhead = 0;
+    int ksp_total = 20;
 
     for (;;) {
         if (is_soft_enabled()) {
@@ -1724,7 +1737,8 @@ void StartMusicTask(void const * argument)
             }
         }
         else if (buzzer_setting == KSP_MAIN) {
-
+            playtoneRTOS(ksp_tunes[ksp_playhead], ksp_delays[ksp_playhead], vol);
+            ksp_playhead = (ksp_playhead + 1) % ksp_total;
         }
     }
   /* USER CODE END StartMusicTask */
@@ -1882,7 +1896,7 @@ void startStateMachine(void const * argument)
         }
         else {
             changeLed(100, 0, 0);
-            buzzer_setting = RICK;
+            buzzer_setting = KSP_MAIN;
             flight_state = IDLE;
         }
 
@@ -1904,11 +1918,7 @@ void StartTelemTask(void const * argument)
     sx1280_custom radio;
 
     sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
-    sxSetDio1Pin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
-
-    float data[4];
-
-    char printBuffer[128];
+    sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
 
     //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
     SetTxParams(&radio, 0, 0xE0); // lowest power -18dBm
@@ -1917,16 +1927,37 @@ void StartTelemTask(void const * argument)
     lsm6dso imu;
     uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);
 
+    SPL06 baro;
+    uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
+
     Orientation ori;
     orientation_init(&ori);
     uint32_t counter = 0;
 
-    data[0] = ori.orientationQuat.w;
-    data[1] = ori.orientationQuat.v[0];
-    data[2] = ori.orientationQuat.v[1];
-    data[3] = ori.orientationQuat.v[2];
+    TLM_decoded TLM_dec;
+    TLM_encoded TLM_enc;
 
-    WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
+    TLM_dec.packet_type = 1;
+    TLM_dec.flight_state = 4;
+    TLM_dec.is_playing_music = 0;
+    TLM_dec.is_data_logging = 0;
+    TLM_dec.pin_states = 0b00011011;
+    TLM_dec.servo_state = 3;
+    TLM_dec.vbat = 7.283;
+    TLM_dec.systick = 1232432;
+    TLM_dec.orientation_quat[0] = 0.143123;
+    TLM_dec.acc[2] = 1337;
+    TLM_dec.gyro[2] = -21;
+    TLM_dec.baro = 90001.623;
+    TLM_dec.temp = 63.4;
+    TLM_dec.vertical_velocity = 180;
+    TLM_dec.altitude = 1321;
+    TLM_dec.debug = 1337;
+    TLM_dec.ranging = 15212;
+
+    encode_TLM(&TLM_dec, &TLM_enc);
+
+    WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
     osDelay(1);
 
     SetDioIrqParams(&radio, 1, 1, 0, 0); // txdone on gpio1
@@ -1950,14 +1981,21 @@ void StartTelemTask(void const * argument)
         orientation_setAcc(&ori, imu.accMPS);
         orientation_update(&ori, dt);
 
-
         counter++;
 
         if (counter % 20 == 0) {
-            data[0] = get_battery_voltage(); //ori.orientationQuat.w;
-            data[1] = ori.orientationQuat.v[0];
-            data[2] = ori.orientationQuat.v[1];
-            data[3] = ori.orientationQuat.v[2];
+
+            TLM_dec.vbat = get_battery_voltage();
+            TLM_dec.systick = osKernelSysTick();
+            TLM_dec.acc[0] = imu.rawAcc[0];
+            TLM_dec.acc[1] = imu.rawAcc[1];
+            TLM_dec.acc[2] = imu.rawAcc[2];
+            TLM_dec.gyro[0] = imu.rawGyro[0];
+            TLM_dec.gyro[1] = imu.rawGyro[1];
+            TLM_dec.gyro[2] = imu.rawGyro[2];
+            SPL06_Read(&baro);
+            TLM_dec.baro = baro.pressure_Pa;
+            TLM_dec.altitude = 44330 * (1 - pow(baro.pressure_Pa/101325, 0.190295));
 
             //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
             //        data[1], data[2], data[3]);
@@ -1965,7 +2003,9 @@ void StartTelemTask(void const * argument)
             //CDC_Transmit_FS((uint8_t*) printBuffer,
             //        MIN(strlen(printBuffer), 128));
 
-            WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
+            encode_TLM(&TLM_dec, &TLM_enc);
+            WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
+            //WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
             osDelay(1);
             ClrIrqStatus(&radio, 1); // clear txdone irq
             osDelay(1);

@@ -42,7 +42,7 @@ void sxInit(sx1280_custom *radio, SPI_HandleTypeDef *spiHandle,
     WriteRegisterByte(radio, 0x925, 0x32); // must be used for SF9-12. Different for 5-8 (page 112)
 
     HAL_Delay(1);
-    SetPacketParamsLora(radio, 12, 0x80, 34, 0x20, 0x40); // 12 symbol preamble, implicit header, 34 byte payload, CRC enabled, Normal IQ
+    SetPacketParamsLora(radio, 12, 0x80, 32, 0x20, 0x40); // 12 symbol preamble, implicit header, 32 byte payload, CRC enabled, Normal IQ
     HAL_Delay(1);
 }
 
