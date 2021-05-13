@@ -12,7 +12,7 @@
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     uint8_t packet_state_bits; // <[]>
     uint8_t pin_states_servo;
     uint8_t systick[3]; // equivalent to 24 bit unsigned integer

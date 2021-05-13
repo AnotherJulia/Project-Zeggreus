@@ -1660,7 +1660,7 @@ void StartMusicTask(void const * argument)
   /* USER CODE BEGIN StartMusicTask */
     /* Infinite loop */
 
-    uint16_t vol = 1; // 10
+    uint16_t vol = 13; // 10
     uint16_t beatlength = 50; // determines tempo
     float beatseparationconstant = 0.3;
 
@@ -1759,9 +1759,11 @@ void startStateMachine(void const * argument)
     uint32_t currentTime = osKernelSysTick();
     uint32_t timeSinceLaunch = 0;
 
+
     Servo deployServo;
     servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
     servo_disable(&deployServo);
+    //while (1) {osDelay(20);}
 
     /* Infinite loop */
     for (;;) {
@@ -1872,11 +1874,18 @@ void startStateMachine(void const * argument)
                         || (timeSinceLaunch >= MIN_DEPLOY_TIME
                                 && is_vote_asserted())) {
 
-                    servo_writeangle(&deployServo, SERVO_DEPLOY_POSITION);
+                    if (is_armed()) {
+                        servo_writeangle(&deployServo, SERVO_DEPLOY_POSITION);
 
-                    last_logged_deploy_time = timeSinceLaunch;
-                    flight_state = DEPLOYED;
-                    break;
+                        last_logged_deploy_time = timeSinceLaunch;
+                        flight_state = DEPLOYED;
+                        break;
+                    }
+                    else {
+                        flight_state = SYSTEMS_CHECK;
+                        break;
+                    }
+
                 }
 
                 break;
@@ -1897,7 +1906,8 @@ void startStateMachine(void const * argument)
         else {
             changeLed(100, 0, 0);
             buzzer_setting = KSP_MAIN;
-            flight_state = IDLE;
+            flight_state = SYSTEMS_CHECK;
+            servo_disable(&deployServo);
         }
 
         osDelay(1);
