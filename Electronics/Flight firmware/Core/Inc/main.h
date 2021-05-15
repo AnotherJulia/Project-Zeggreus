@@ -64,10 +64,12 @@ void Error_Handler(void);
 #define VOLTAGE_GPIO_Port GPIOC
 #define RBF_Pin GPIO_PIN_0
 #define RBF_GPIO_Port GPIOA
+#define CAM_POWER_Pin GPIO_PIN_2
+#define CAM_POWER_GPIO_Port GPIOA
 #define SD_NSS_Pin GPIO_PIN_4
 #define SD_NSS_GPIO_Port GPIOC
-#define DEBUG_Pin GPIO_PIN_5
-#define DEBUG_GPIO_Port GPIOC
+#define VTX_BTN1_Pin GPIO_PIN_5
+#define VTX_BTN1_GPIO_Port GPIOC
 #define SPI2_NSS_Pin GPIO_PIN_12
 #define SPI2_NSS_GPIO_Port GPIOB
 #define LORA_NSS_Pin GPIO_PIN_15

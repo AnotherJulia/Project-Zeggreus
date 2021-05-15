@@ -64,6 +64,8 @@ static uint16_t buzzer_delay = 1000;
 // extra (TODO):
 uint32_t last_logged_deploy_time = 0;
 
+uint8_t is_camera_recording = 0;
+
 // Music (Rick Astley)
 
 #define  a3f    208     // 208 Hz
@@ -213,10 +215,6 @@ uint8_t is_breakwire_connected() {
     return !HAL_GPIO_ReadPin(BREAKWIRE_GPIO_Port, BREAKWIRE_Pin);
 }
 
-uint8_t is_debug_connected() {
-    return !HAL_GPIO_ReadPin(DEBUG_GPIO_Port, DEBUG_Pin);
-}
-
 void buzzer_beep(uint8_t delayval) {
     buzzer_setting = REPEAT_BEEP;
     buzzer_delay = delayval * 20;
@@ -226,12 +224,56 @@ void buzzer_beep(uint8_t delayval) {
     }
 }
 
+void pulse_recording_button() {
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_SET);
+    osDelay(300);
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_RESET);
+}
+
+void enable_recording() {
+    if (!is_camera_recording) {
+        pulse_recording_button();
+        is_camera_recording = 1;
+    }
+}
+
+void disable_recording() {
+    if (is_camera_recording) {
+        pulse_recording_button();
+        is_camera_recording = 0;
+    }
+}
+
+void enable_camera() {
+    HAL_GPIO_WritePin(CAM_POWER_GPIO_Port, CAM_POWER_Pin, GPIO_PIN_SET);
+    is_camera_recording = 0;
+}
+
+void disable_camera() {
+    if (is_camera_recording) {
+        pulse_recording_button();
+        osDelay(1000);
+        is_camera_recording = 0;
+    }
+
+    HAL_GPIO_WritePin(CAM_POWER_GPIO_Port, CAM_POWER_Pin, GPIO_PIN_RESET);
+}
+
+void restart_camera_with_recording() {
+    disable_camera();
+    osDelay(300);
+    enable_camera();
+    osDelay(10000);
+    enable_recording();
+}
+
 void set_status_led(uint8_t status_state) {
     // TODO
 }
 
 uint8_t is_vote_asserted() {
     // Todo
+    return 0;
 }
 
 void loraTesting(uint8_t isTx) {
@@ -633,67 +675,6 @@ void SDTesting() {
 
     }
 
-}
-
-void BWtest() {
-
-    enum state {
-        INITIALIZATION, PADIDLE, ARMED, LAUNCHED, DEPLOYED
-    };
-
-    enum state currentState;
-    currentState = ARMED;
-
-    uint32_t launchTime = HAL_GetTick();
-    uint32_t currentTime = HAL_GetTick();
-    uint32_t deployDelay = 5000; // ms
-
-    // reset servo
-    htim2.Instance->CCR4 = 1000;
-
-    Servo deployServo;
-    servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
-    servo_writeangle(&deployServo, 0);
-
-    while (1) {
-        HAL_Delay(1);
-
-        currentTime = HAL_GetTick();
-
-        switch (currentState) {
-        case ARMED:
-
-            if (HAL_GPIO_ReadPin(DEBUG_GPIO_Port, DEBUG_Pin)) {
-                changeLed(100, 0, 0);
-                currentState = LAUNCHED;
-                launchTime = HAL_GetTick();
-            } else {
-                changeLed(0, 100, 0);
-            }
-
-            break;
-        case LAUNCHED:
-
-            playtone(2000, 100, 30);
-            HAL_Delay(100);
-
-            if ((currentTime - launchTime) > deployDelay) {
-                //htim2.Instance->CCR4 = 2000;
-                servo_writeangle(&deployServo, 180);
-                changeLed(100, 100, 100);
-                currentState = DEPLOYED;
-            }
-            break;
-
-        case DEPLOYED:
-            ksp();
-            break;
-
-        default:
-            break;
-        }
-
-    }
 }
 
 /* USER CODE END PFP */
@@ -1208,6 +1189,10 @@ static void MX_TIM2_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
@@ -1309,13 +1294,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SD_NSS_GPIO_Port, SD_NSS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, CAM_POWER_Pin|LORA_NSS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, SD_NSS_Pin|VTX_BTN1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LORA_RESET_GPIO_Port, LORA_RESET_Pin, GPIO_PIN_SET);
@@ -1326,6 +1311,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(RBF_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : CAM_POWER_Pin LORA_NSS_Pin */
+  GPIO_InitStruct.Pin = CAM_POWER_Pin|LORA_NSS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pin : SD_NSS_Pin */
   GPIO_InitStruct.Pin = SD_NSS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -1333,11 +1325,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SD_NSS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : DEBUG_Pin */
-  GPIO_InitStruct.Pin = DEBUG_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(DEBUG_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pin : VTX_BTN1_Pin */
+  GPIO_InitStruct.Pin = VTX_BTN1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(VTX_BTN1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI2_NSS_Pin LORA_RESET_Pin */
   GPIO_InitStruct.Pin = SPI2_NSS_Pin|LORA_RESET_Pin;
@@ -1345,13 +1338,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LORA_NSS_Pin */
-  GPIO_InitStruct.Pin = LORA_NSS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LORA_NSS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LORA_DIO1_Pin */
   GPIO_InitStruct.Pin = LORA_DIO1_Pin;
@@ -1758,12 +1744,9 @@ void startStateMachine(void const * argument)
     uint32_t launchTime = osKernelSysTick();
     uint32_t currentTime = osKernelSysTick();
     uint32_t timeSinceLaunch = 0;
-
-
     Servo deployServo;
     servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
     servo_disable(&deployServo);
-    //while (1) {osDelay(20);}
 
     /* Infinite loop */
     for (;;) {
@@ -1796,10 +1779,17 @@ void startStateMachine(void const * argument)
                 // close the servo if necessary
                 servo_writeangle(&deployServo, SERVO_CLOSED_POSITION);
 
-                // check if the battery is empty
-                // also, check if there's a squib connected if we're configured for one.
-                if (get_battery_voltage() <= BATTERY_EMPTY_LIMIT) {
+                float vbat = get_battery_voltage();
 
+                // enable power to camera/video transmitter
+                if (vbat > 7.4) {
+                    restart_camera_with_recording();
+                } else {
+                    disable_camera();
+                }
+
+                // check if the battery is empty
+                if (vbat <= BATTERY_EMPTY_LIMIT) {
                     flight_state = ERROR;
                     break;
                 }
@@ -1867,7 +1857,6 @@ void startStateMachine(void const * argument)
             case LAUNCHED:
                 changeLed(100, 100, 100);
                 buzzer_beep(BEEP_SHORT);
-
                 buzzer_beep(BEEP_SHORT);
 
                 if (timeSinceLaunch >= MAX_DEPLOY_TIME
@@ -1880,36 +1869,33 @@ void startStateMachine(void const * argument)
                         last_logged_deploy_time = timeSinceLaunch;
                         flight_state = DEPLOYED;
                         break;
-                    }
-                    else {
+                    } else {
                         flight_state = SYSTEMS_CHECK;
                         break;
                     }
-
                 }
-
                 break;
 
             case DEPLOYED:
                 changeLed(100, 0, 100);
-                //if (!buzzer_queue_length()) {
-                //    buzzer_beep(BEEP_LONG);
-                //}
                 buzzer_beep(BEEP_LONG);
+
+                if (timeSinceLaunch > 240000) {
+                    flight_state = LANDED;
+                }
 
                 break;
 
             case LANDED:
                 break;
             }
-        }
-        else {
+        } else {
             changeLed(100, 0, 0);
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
             servo_disable(&deployServo);
+            disable_camera();
         }
-
         osDelay(1);
     }
   /* USER CODE END startStateMachine */

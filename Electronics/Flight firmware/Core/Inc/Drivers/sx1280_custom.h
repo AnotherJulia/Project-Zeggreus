@@ -34,6 +34,9 @@ void SetTxContinuousWave(sx1280_custom *radio);
 void SetRfFrequency(sx1280_custom *radio);
 void SetRfFrequency2(sx1280_custom *radio);
 void setPacketLora(sx1280_custom *radio);
+
+void setPacketRanging(sx1280_custom *radio);
+
 void SetTxParams(sx1280_custom *radio, uint8_t power, uint8_t rampTime);
 void SetBufferBaseAddresses(sx1280_custom *radio, uint8_t txBaseAddress, uint8_t rxBaseAddress);
 void SetModulationParams(sx1280_custom *radio, uint8_t modParam1, uint8_t modParam2,
@@ -55,4 +58,5 @@ void GetPacketStatusLora(sx1280_custom *radio);
 void GetRxBufferStatus(sx1280_custom *radio);
 
 void WriteRegisterByte(sx1280_custom *radio, uint16_t address, uint8_t data);
+void WriteRegisterBytes(sx1280_custom *radio, uint16_t address, uint8_t *data, uint8_t size);
 void sxSetDio1Pin(sx1280_custom *radio, GPIO_TypeDef *Dio1PinBank, uint16_t Dio1Pin);

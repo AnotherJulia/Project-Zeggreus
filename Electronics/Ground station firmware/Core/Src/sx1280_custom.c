@@ -36,7 +36,8 @@ void sxInit(sx1280_custom *radio, SPI_HandleTypeDef *spiHandle,
 
     SetBufferBaseAddresses(radio, 0, 0); // 127
     HAL_Delay(1);
-    SetModulationParams(radio, 0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW (0x0A), CR 4/5
+    //SetModulationParams(radio, 0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW (0x0A), CR 4/5. Sensitivity: -111
+    SetModulationParams(radio, 0x80, 0x18, 0x01); // Spreading factor 8, 800 BW (0x0A), CR 4/5. Sensitivity: -115
     HAL_Delay(1);
 
     WriteRegisterByte(radio, 0x925, 0x32); // must be used for SF9-12. Different for 5-8 (page 112)
