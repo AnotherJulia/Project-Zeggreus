@@ -24,10 +24,17 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
+#include "sx1280_custom.h"
+#include "telemetry.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+typedef struct Quaternion {
+    float w;       /**< Scalar part */
+    float v[3];    /**< Vector part */
+} Quaternion;
 
 /* USER CODE END PTD */
 
@@ -71,235 +78,23 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 
-void SetStandbyRC() {
-    uint8_t loraRxBuf[2];
-    uint8_t loraTxBuf[] = { 0x80, 0x00 }; // Standby RC
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 2,
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetTxContinuousWave() {
-    uint8_t loraRxBuf[1];
-    uint8_t loraTxBuf[] = { 0xD1 }; // ContinousWave
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 1,
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetRfFrequency() {
-    // 52e6/(2^18) multiples of
-    // 2.46 = 2.46 * 10^9/(52e6/(2^18)) = 12401428 = 0xBD3B14
-    // uint32_t rfFreq = 12401428;
-
-    uint8_t loraRxBuf[4];
-    uint8_t loraTxBuf[] = { 0x86, 0xBD, 0x3B, 0x14 }; // SetRfFrequency
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 4,
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetRfFrequency2() {
-    // 52e6/(2^18) multiples of
-    // 2.46 = 2.46 * 10^9/(52e6/(2^18)) = 12401428 = 0xBD3B14
-    // uint32_t rfFreq = 12401428;
-
-    uint8_t loraRxBuf[4];
-    uint8_t loraTxBuf[] = { 0x86, 0xBE, 0xC4, 0xEC }; // SetRfFrequency
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 4,
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void setPacketLora() {
-    uint8_t loraRxBuf[2];
-    uint8_t loraTxBuf[] = { 0x8A, 0x01 }; // Set packet to lora
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 2,
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetTxParams(uint8_t power, uint8_t rampTime) {
-    uint8_t loraRxBuf[3];
-    // Set to -12 dBm = 0.06 mW
-    uint8_t loraTxBuf[] = { 0x8E, power, rampTime};
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, sizeof(loraTxBuf),
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetBufferBaseAddresses(uint8_t txBaseAddress, uint8_t rxBaseAddress) {
-    uint8_t loraRxBuf[3];
-    uint8_t loraTxBuf[] = { 0x8F, txBaseAddress, rxBaseAddress };
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, sizeof(loraTxBuf),
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetModulationParams(uint8_t modParam1, uint8_t modParam2, uint8_t modParam3) {
-    uint8_t loraRxBuf[4];
-    uint8_t loraTxBuf[] = { 0x8B, modParam1, modParam2, modParam3};
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    uint8_t loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, sizeof(loraTxBuf),
-            1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetPacketParamsLora(uint8_t param1, uint8_t param2, uint8_t param3, uint8_t param4, uint8_t param5) {
-    uint8_t loraTxBuf[] = { 0x8C, param1, param2, param3, param4, param5};
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, loraTxBuf, sizeof(loraTxBuf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void WriteBuffer(uint8_t offset, uint8_t *data, uint8_t size) {
-    uint8_t loraTxBuf[] = {0x1A, offset};
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, loraTxBuf, sizeof(loraTxBuf), 1000);
-    HAL_SPI_Transmit(&hspi3, data, size, 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-
-}
-
-
-void ReadBuffer(uint8_t offset, uint8_t size, uint8_t *data) {
-    uint8_t loraTxBuf[] = { 0x1B, offset};
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, loraTxBuf, sizeof(loraTxBuf), 1000);
-    HAL_SPI_Receive(&hspi3, data, size, 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetDioIrqParams( uint16_t irqMask, uint16_t dio1Mask, uint16_t dio2Mask, uint16_t dio3Mask ) {
-    uint8_t buf[9];
-    buf[0] = 0x8D;
-    buf[1] = ( uint8_t )( ( irqMask >> 8 ) & 0x00FF );
-    buf[2] = ( uint8_t )( irqMask & 0x00FF );
-    buf[3] = ( uint8_t )( ( dio1Mask >> 8 ) & 0x00FF );
-    buf[4] = ( uint8_t )( dio1Mask & 0x00FF );
-    buf[5] = ( uint8_t )( ( dio2Mask >> 8 ) & 0x00FF );
-    buf[6] = ( uint8_t )( dio2Mask & 0x00FF );
-    buf[7] = ( uint8_t )( ( dio3Mask >> 8 ) & 0x00FF );
-    buf[8] = ( uint8_t )( dio3Mask & 0x00FF );
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, buf, sizeof(buf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void ClrIrqStatus(uint16_t irqMask) {
-    uint8_t buf[3];
-    buf[0] = 0X97;
-    buf[1] = ( uint8_t )( ( ( uint16_t )irqMask >> 8 ) & 0x00FF );
-    buf[2] = ( uint8_t )( ( uint16_t )irqMask & 0x00FF );
-
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, buf, sizeof(buf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetTx(uint8_t periodBase, uint16_t periodBaseCount) {
-    uint8_t buf[4];
-    buf[0] = 0X83;
-    buf[1] = periodBase;
-    buf[2] = ( uint8_t )( ( ( uint16_t )periodBaseCount >> 8 ) & 0x00FF );
-    buf[3] = ( uint8_t )( ( uint16_t )periodBaseCount & 0x00FF );
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, buf, sizeof(buf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void SetRx(uint8_t periodBase, uint16_t periodBaseCount) {
-    uint8_t buf[4];
-    buf[0] = 0X82;
-    buf[1] = periodBase;
-    buf[2] = ( uint8_t )( ( ( uint16_t )periodBaseCount >> 8 ) & 0x00FF );
-    buf[3] = ( uint8_t )( ( uint16_t )periodBaseCount & 0x00FF );
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, buf, sizeof(buf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void GetPacketStatus(uint64_t *packetStatus) {
-    uint8_t loraTxBuf[] = { 0x1D};
-    // Redo this with proper packetstatus type
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, loraTxBuf, sizeof(loraTxBuf), 1000);
-    HAL_SPI_Receive(&hspi3, packetStatus, 5, 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-void GetRxBufferStatus() {
-
-}
-
-void WriteRegisterByte(uint16_t address, uint8_t data) {
-    uint8_t loraTxBuf[4];
-    loraTxBuf[0] = 0x18;
-    loraTxBuf[1] = ( uint8_t )( ( ( uint16_t )address >> 8 ) & 0x00FF );
-    loraTxBuf[2] = ( uint8_t )( ( uint16_t )address & 0x00FF );
-    loraTxBuf[3] = data;
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi3, loraTxBuf, sizeof(loraTxBuf), 1000);
-    HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-}
-
-
-
 void loraTesting(uint8_t isTx) {
 
-    HAL_GPIO_WritePin(LORA_RESET_GPIO_Port, LORA_RESET_Pin, GPIO_PIN_RESET);
-    HAL_Delay(2);
-    HAL_GPIO_WritePin(LORA_RESET_GPIO_Port, LORA_RESET_Pin, GPIO_PIN_SET);
-    HAL_Delay(2);
-
-    SetStandbyRC();
-    HAL_Delay(3);
-    setPacketLora();
-    HAL_Delay(2);
-    SetRfFrequency2();
-    HAL_Delay(2);
-
-    SetBufferBaseAddresses(0,0); // 127
-    HAL_Delay(1);
-    SetModulationParams(0x90, 0x0A, 0x01); // Spreading factor 9, 1600 BW (0x0A), CR 4/5
-    HAL_Delay(1);
-
-    WriteRegisterByte( 0x925, 0x32 ); // must be used for SF9-12. Different for 5-8 (page 112)
-
-    HAL_Delay(1);
-    SetPacketParamsLora(12, 0x80, 32, 0x20, 0x40); // 12 symbol preamble, implicit header, 32 byte payload, CRC enabled, Normal IQ
-    HAL_Delay(1);
-    // testing: set to -12 dBm
-
-    char printBuffer[128];
+    sx1280_custom radio;
+    sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
 
     if (isTx) {
         //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
-        SetTxParams(0x00, 0xE0); // lowest power -18dBm
-        //SetTxParams(31, 0xE0); // Highest power. 12.5 dBm
+        //SetTxParams(0x00, 0xE0); // lowest power -18dBm
+        SetTxParams(&radio, 31, 0xE0); // Highest power. 12.5 dBm
         HAL_Delay(3);
 
-        uint8_t data[] = {0,0,0,0};
+        uint8_t data[] = { 0, 0, 0, 0 };
 
-        WriteBuffer(0, data, sizeof(data));
+        WriteBuffer(&radio, 0, data, sizeof(data));
         HAL_Delay(1);
 
-        SetDioIrqParams(1,1,0,0); // txdone on gpio1
+        SetDioIrqParams(&radio, 1, 1, 0, 0); // txdone on gpio1
 
         //SetTxContinuousWave();
         HAL_Delay(3);
@@ -315,79 +110,177 @@ void loraTesting(uint8_t isTx) {
 
             //changeLed(data[1], data[2], data[3]);
 
-            WriteBuffer(0, data, sizeof(data));
+            WriteBuffer(&radio, 0, data, sizeof(data));
             HAL_Delay(1);
-            ClrIrqStatus(1); // clear txdone irq
+            ClrIrqStatus(&radio, 1); // clear txdone irq
             HAL_Delay(1);
-            SetTx(0x02, 50); // time-out of 1ms * 50 = 50ms
-            HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, ledon);
+            SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
             //SetRfFrequency2();
             //HAL_Delay(5000);
             //SetRfFrequency();
             //changeLed(0, 100, 0);
-            sprintf(printBuffer, "Sending data...\r\n");
-            CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
             HAL_Delay(500);
         }
-    }
-    else {
-        // rx mode, reception
-        SetDioIrqParams(1<<1, 1<<1, 0, 0); //rxdone on gpio1
+    } else {
+        // rx mode
+        SetDioIrqParams(&radio, 1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
         HAL_Delay(1);
 
-
-        float data[5];
+        uint8_t data[32];
         data[0] = 60;
         data[1] = 60;
         data[2] = 60;
         uint8_t rxStartBufferPointer = 1;
-        char printBuffer[128];
 
+        changeLed(0, 100, 0);
         uint8_t counter = 0;
-        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin,GPIO_PIN_SET);
 
         while (1) {
 
             //SetRx(0x00, 0xffff); // continous rx
-            SetRx(0x00, 0); // No timeout
+            SetRx(&radio, 0x00, 0); // No timeout
             //SetRx(0x02, 200); // 200 ms timeout
             HAL_Delay(1);
             // wait for reception:
-            while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {}
-
-            //GetPacketStatus(); // TODO
-            ClrIrqStatus(1<<1); // clear rxdone Irq
-            HAL_Delay(1);
-            //GetRxBufferStatus(); // TODO
-            ReadBuffer(rxStartBufferPointer, 32, data);
-
-
-            counter++;
-
-            if (counter % 20 == 0) {
-
-                sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
-                        data[1], data[2], data[3]);
-                //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
-                CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
-
-                WriteBuffer(0, (uint8_t*) data, sizeof(data));
-                HAL_Delay(1);
-                ClrIrqStatus(1); // clear txdone irq
-                HAL_Delay(1);
-                SetTx(0x02, 50); // time-out of 1ms * 50 = 50ms
+            while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
             }
 
-//
+            //GetPacketStatus(); // TODO
+            ClrIrqStatus(&radio, 1 << 1); // clear rxdone Irq
+            HAL_Delay(1);
+            //GetRxBufferStatus(); // TODO
+            ReadBuffer(&radio, rxStartBufferPointer, 32, data);
+            changeLed(data[1], data[2], data[3]);
+            if (data[2]) {
+                htim2.Instance->CCR4 = 1000;
+            } else {
+                htim2.Instance->CCR4 = 2000;
+            }
 
             HAL_Delay(10);
-
 
         }
 
     }
 }
 
+void loraOrientation(uint8_t isTx) {
+
+    sx1280_custom radio;
+
+    sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+    sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
+
+    float data[4];
+
+    char printBuffer[128];
+
+    if (isTx) {
+    } else {
+        // rx mode
+        SetDioIrqParams(&radio, 1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
+        HAL_Delay(1);
+
+        uint8_t rxStartBufferPointer = 1;
+
+        //changeLed(0, 100, 0);
+        while (1) {
+
+            //SetRx(0x00, 0xffff); // continous rx
+            SetRx(&radio, 0x00, 0); // No timeout
+            //SetRx(0x02, 200); // 200 ms timeout
+            HAL_Delay(1);
+            // wait for reception:
+            while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+            }
+
+            GetPacketStatusLora(&radio);
+            ClrIrqStatus(&radio, 1 << 1); // clear rxdone Irq
+            HAL_Delay(1);
+            //GetRxBufferStatus(); // TODO
+
+            ReadBuffer(&radio, rxStartBufferPointer, sizeof(data),
+                    (uint8_t*) data);
+            snprintf(printBuffer, 128,
+                    "Quaternion: %f, %f, %f, %f, RSSI: %f, SNR: %f\r\n",
+                    data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
+            CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+            HAL_Delay(1);
+
+        }
+
+    }
+}
+
+void loraTelemetry() {
+    TLM_decoded TLM_dec;
+    TLM_encoded TLM_enc;
+
+    sx1280_custom radio;
+
+    sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+    sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
+
+    char printBuffer[128];
+
+    // rx mode
+    SetDioIrqParams(&radio, 1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
+    HAL_Delay(1);
+
+    uint8_t rxStartBufferPointer = 0;
+    /*
+    TLM_dec.packet_type = 1;
+    TLM_dec.flight_state = 23;
+    TLM_dec.is_playing_music = 0;
+    TLM_dec.is_data_logging = 0;
+    TLM_dec.pin_states = 0b00011011;
+    TLM_dec.servo_state = 3;
+    TLM_dec.vbat = 7.283;
+    TLM_dec.systick = 1232432;
+    TLM_dec.orientation_quat[0] = 0.143123;
+    TLM_dec.acc[2] = -12343;
+    TLM_dec.gyro[2] = -21;
+    TLM_dec.baro = 90001.623;
+    TLM_dec.temp = 63.4;
+    TLM_dec.vertical_velocity = 180;
+    TLM_dec.altitude = 1321;
+    TLM_dec.debug = 1337;
+    TLM_dec.ranging = 15212;
+
+     */
+
+    //changeLed(0, 100, 0);
+    uint8_t data[4];
+    while (1) {
+
+        //SetRx(0x00, 0xffff); // continous rx
+        SetRx(&radio, 0x00, 0); // No timeout
+        //SetRx(0x02, 200); // 200 ms timeout
+        HAL_Delay(1);
+        // wait for reception:
+        while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+        }
+
+        GetPacketStatusLora(&radio);
+        ClrIrqStatus(&radio, 1 << 1); // clear rxdone Irq
+        HAL_Delay(1);
+        //GetRxBufferStatus(); // TODO
+
+        ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),(uint8_t*) &TLM_enc);
+        //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
+        decode_TLM(&TLM_enc, &TLM_dec);
+        snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
+                TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
+                TLM_dec.altitude, TLM_dec.ranging);
+        //snprintf(printBuffer, 128,
+        //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
+        //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
+        CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+        HAL_Delay(1);
+
+    }
+
+}
 
 /* USER CODE END 0 */
 
@@ -426,7 +319,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-  //loraTesting(0);
+  loraTelemetry(0);
 
   HAL_Delay(200);
   /* USER CODE END 2 */

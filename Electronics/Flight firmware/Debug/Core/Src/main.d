@@ -65,9 +65,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
- ../Core/Inc/Drivers/SPL06.h ../Core/Inc/Drivers/LSM6DSO32.h \
- ../Core/Inc/constants.h ../Core/Inc/Drivers/servo.h \
- ../Core/Inc/Drivers/Quaternion.h ../Core/Inc/orientation.h
+ ../Core/Inc/Drivers/sx1280_custom.h ../Core/Inc/Drivers/SPL06.h \
+ ../Core/Inc/Drivers/LSM6DSO32.h ../Core/Inc/constants.h \
+ ../Core/Inc/Drivers/servo.h ../Core/Inc/Drivers/Quaternion.h \
+ ../Core/Inc/orientation.h ../Core/Inc/Drivers/telemetry.h
 
 ../Core/Inc/main.h:
 
@@ -211,6 +212,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
 
+../Core/Inc/Drivers/sx1280_custom.h:
+
 ../Core/Inc/Drivers/SPL06.h:
 
 ../Core/Inc/Drivers/LSM6DSO32.h:
@@ -222,3 +225,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/Drivers/Quaternion.h:
 
 ../Core/Inc/orientation.h:
+
+../Core/Inc/Drivers/telemetry.h:
