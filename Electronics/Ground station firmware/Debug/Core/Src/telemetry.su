@@ -1,3 +1,3 @@
-telemetry.c:5:6:encode_TLM	32	static
-telemetry.c:42:6:decode_TLM	32	static
-telemetry.c:81:6:test_TLM	200	static
+telemetry.c:6:6:encode_TLM	32	static
+telemetry.c:46:6:decode_TLM	32	static
+telemetry.c:85:6:test_TLM	200	static

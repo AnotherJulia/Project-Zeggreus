@@ -12,7 +12,10 @@ void encode_TLM(TLM_decoded *dec, TLM_encoded *enc) {
     enc->systick[1] = 0xff & (dec->systick >> 8);
     enc->systick[2] = 0xff & dec->systick;
 
-    enc->vbat = (uint8_t) round(dec->vbat * 20); // 0.05 V/lsb
+    uint16_t vbat_10mV = (uint16_t) round(dec->vbat * 100); // 0.01 V/lsb
+
+    enc->vbat_MSB = (uint8_t) ((vbat_10mV >> 2) & 0xFF);
+    enc->padding_vbat_LSB = (uint8_t) (vbat_10mV & 0b00000011);
 
     enc->orientation_quat[0] = (int8_t) round(dec->orientation_quat[0]*127);
     enc->orientation_quat[1] = (int8_t) round(dec->orientation_quat[1]*127);
@@ -51,7 +54,7 @@ void decode_TLM(TLM_encoded *enc, TLM_decoded *dec) {
 
     dec->systick = (enc->systick[0] << 16) | (enc->systick[1] << 8) | (enc->systick[2]);
 
-    dec->vbat = ((float) enc->vbat)* 0.05;
+    dec->vbat = ((((uint16_t) enc->vbat_MSB) << 2) | ((uint16_t) enc->padding_vbat_LSB & 0b00000011 ) )*0.01;
 
     dec->orientation_quat[0] = ((float) enc->orientation_quat[0])/127;
     dec->orientation_quat[1] = ((float) enc->orientation_quat[1])/127;

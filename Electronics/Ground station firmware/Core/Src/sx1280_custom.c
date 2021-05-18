@@ -91,6 +91,24 @@ void setPacketLora(sx1280_custom *radio) {
     sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, 2);
 }
 
+void setPacketRanging(sx1280_custom *radio) {
+    uint8_t loraRxBuf[2];
+    uint8_t loraTxBuf[] = { 0x8A, 0x02 }; // Set packet to ranging
+    sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, 2);
+}
+
+float sxSingleRanging(sx1280_custom *radio) {
+    SetStandbyRC(radio);
+    setPacketRanging(radio);
+    SetModulationParams(radio, 0x80, 0x18, 0x01); // Spreading factor 8, 800 BW (0x0A), CR 4/5. Sensitivity: -115
+    SetPacketParamsLora(radio, 12, 0x80, 7, 0x20, 0x40);
+    SetTxParams(radio, 0, 0xE0);
+    uint8_t rangingAddress[] = {0x12, 0x34, 0x56, 0x78};
+    WriteRegisterBytes(radio, 0x916, rangingAddress, 4);
+
+
+}
+
 void SetTxParams(sx1280_custom *radio, uint8_t power, uint8_t rampTime) {
     uint8_t loraRxBuf[3];
     // Set to -12 dBm = 0.06 mW
@@ -202,4 +220,14 @@ void WriteRegisterByte(sx1280_custom *radio, uint16_t address, uint8_t data) {
     loraTxBuf[2] = (uint8_t) ((uint16_t) address & 0x00FF);
     loraTxBuf[3] = data;
     sxSpiTransmit(radio, loraTxBuf, sizeof(loraTxBuf));
+}
+
+void WriteRegisterBytes(sx1280_custom *radio, uint16_t address, uint8_t *data, uint8_t size) {
+
+    uint8_t loraTxBuf[] = { 0x18, (uint8_t) (((uint16_t) address >> 8) & 0x00FF), (uint8_t) ((uint16_t) address & 0x00FF)};
+
+    HAL_GPIO_WritePin(radio->csPinBank, radio->csPin, GPIO_PIN_RESET);
+    HAL_SPI_Transmit(radio->spiHandle, loraTxBuf, sizeof(loraTxBuf), 1000);
+    HAL_SPI_Transmit(radio->spiHandle, data, size, 1000);
+    HAL_GPIO_WritePin(radio->csPinBank, radio->csPin, GPIO_PIN_SET);
 }

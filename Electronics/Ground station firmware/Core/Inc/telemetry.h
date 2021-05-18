@@ -16,7 +16,8 @@ typedef struct __attribute__((packed)) {
     uint8_t packet_state_bits; // <[]>
     uint8_t pin_states_servo;
     uint8_t systick[3]; // equivalent to 24 bit unsigned integer
-    uint8_t vbat;
+    uint8_t vbat_MSB;
+    uint8_t padding_vbat_LSB;
     int8_t orientation_quat[4]; // [w,x,y,z]
     int16_t acc[3];
     int16_t gyro[3];

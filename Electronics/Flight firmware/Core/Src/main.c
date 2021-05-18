@@ -207,12 +207,32 @@ uint8_t is_armed() {
     return HAL_GPIO_ReadPin(RBF_GPIO_Port, RBF_Pin);// High corresponds to disconected = armed
 }
 
+uint8_t is_armed_debounce() {
+    for (int i = 0; i < 20; i++) {
+        if (!is_armed()) {
+            return 0;
+        }
+        osDelay(1);
+    }
+    return 1;
+}
+
 uint8_t is_soft_enabled() {
     return HAL_GPIO_ReadPin(ARM_GPIO_Port, ARM_Pin);
 }
 
 uint8_t is_breakwire_connected() {
     return !HAL_GPIO_ReadPin(BREAKWIRE_GPIO_Port, BREAKWIRE_Pin);
+}
+
+uint8_t is_breakwire_broken_debounce() {
+    for (int i = 0; i < 20; i++) {
+        if (is_breakwire_connected()) {
+            return 0;
+        }
+        osDelay(1);
+    }
+    return 1;
 }
 
 void buzzer_beep(uint8_t delayval) {
@@ -222,6 +242,10 @@ void buzzer_beep(uint8_t delayval) {
     if (osMessageAvailableSpace(BuzzerQueueHandle)) {
         osMessagePut(BuzzerQueueHandle, buzzer_delay, 100);
     }
+}
+
+void buzzer_clear_queue() {
+    xQueueReset(BuzzerQueueHandle);
 }
 
 void pulse_recording_button() {
@@ -1765,6 +1789,7 @@ void startStateMachine(void const * argument)
                 // and if there's a squib connected if one is necessary
                 changeLed(0, 0, 0);
                 if (!is_armed() && get_battery_voltage() > BATTERY_EMPTY_LIMIT) {
+                    buzzer_clear_queue();
 
                     buzzer_beep(BEEP_SHORT);
                     buzzer_beep(BEEP_SHORT);
@@ -1790,7 +1815,7 @@ void startStateMachine(void const * argument)
 
                 // check if the battery is empty
                 if (vbat <= BATTERY_EMPTY_LIMIT) {
-                    flight_state = ERROR;
+                    flight_state = FLIGHT_ERROR;
                     break;
                 }
 
@@ -1804,7 +1829,7 @@ void startStateMachine(void const * argument)
             case IDLE:
                 changeLed(0, 100, 0);
                 if (is_armed()) {
-                    flight_state = ERROR;
+                    flight_state = FLIGHT_ERROR;
                     break;
                 }
 
@@ -1819,14 +1844,15 @@ void startStateMachine(void const * argument)
 
             case PREPARATION:
                 changeLed(0, 0, 100);
-                if (!is_breakwire_connected()) {
+                if (is_breakwire_broken_debounce()) {
                     buzzer_beep(BEEP_LONG);
                     set_status_led(1);
                     flight_state = IDLE;
                     break;
                 }
 
-                if (is_armed()) {
+                // check arming switch with debouncing
+                if (is_armed_debounce()) {
                     buzzer_beep(BEEP_SHORT);
                     buzzer_beep(BEEP_SHORT);
                     set_status_led(1);
@@ -1843,7 +1869,7 @@ void startStateMachine(void const * argument)
                     break;
                 }
 
-                if (!is_breakwire_connected()) {
+                if (is_breakwire_broken_debounce()) {
                     //reset_timer();
 
                     launchTime = currentTime;
@@ -1867,9 +1893,10 @@ void startStateMachine(void const * argument)
                         servo_writeangle(&deployServo, SERVO_DEPLOY_POSITION);
 
                         last_logged_deploy_time = timeSinceLaunch;
+                        buzzer_clear_queue();
                         flight_state = DEPLOYED;
                         break;
-                    } else {
+                    } else { // go back to systems check if rearmed
                         flight_state = SYSTEMS_CHECK;
                         break;
                     }
@@ -1887,9 +1914,11 @@ void startStateMachine(void const * argument)
                 break;
 
             case LANDED:
+                disable_camera();
                 break;
             }
         } else {
+            // when "soft on/off switch" is off. Play some music and disable everything
             changeLed(100, 0, 0);
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
@@ -1989,6 +2018,10 @@ void StartTelemTask(void const * argument)
             TLM_dec.gyro[0] = imu.rawGyro[0];
             TLM_dec.gyro[1] = imu.rawGyro[1];
             TLM_dec.gyro[2] = imu.rawGyro[2];
+            TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
+            TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
+            TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
+            TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
             SPL06_Read(&baro);
             TLM_dec.baro = baro.pressure_Pa;
             TLM_dec.altitude = 44330 * (1 - pow(baro.pressure_Pa/101325, 0.190295));

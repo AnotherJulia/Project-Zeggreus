@@ -132,7 +132,6 @@ void loraTesting(uint8_t isTx) {
         data[2] = 60;
         uint8_t rxStartBufferPointer = 1;
 
-        changeLed(0, 100, 0);
         uint8_t counter = 0;
 
         while (1) {
@@ -221,7 +220,7 @@ void loraTelemetry() {
     sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
     sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
 
-    char printBuffer[128];
+    char printBuffer[256];
 
     // rx mode
     SetDioIrqParams(&radio, 1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
@@ -249,6 +248,14 @@ void loraTelemetry() {
 
      */
 
+    float latitude = 52.394821;
+    float longitude = 5.922696;
+
+    float acc_conversion = 0.0095712904;
+    float gyro_conversion = 0.070;
+
+    uint32_t pkt_count = 0;
+
     //changeLed(0, 100, 0);
     uint8_t data[4];
     while (1) {
@@ -261,6 +268,8 @@ void loraTelemetry() {
         while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
         }
 
+        pkt_count++;
+
         GetPacketStatusLora(&radio);
         ClrIrqStatus(&radio, 1 << 1); // clear rxdone Irq
         HAL_Delay(1);
@@ -269,9 +278,13 @@ void loraTelemetry() {
         ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),(uint8_t*) &TLM_enc);
         //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
         decode_TLM(&TLM_enc, &TLM_dec);
-        snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
-                TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
-                TLM_dec.altitude, TLM_dec.ranging);
+        //snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
+        //        TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
+        //        TLM_dec.altitude, TLM_dec.ranging);
+
+        //snprintf(printBuffer,256,"/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%f,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f*/\r\n", TLM_dec.systick, pkt_count, TLM_dec.vbat,TLM_dec.temp,TLM_dec.altitude,TLM_dec.baro/1000, TLM_dec.temp,0.0,TLM_dec.systick,
+        //        longitude, latitude, TLM_dec.altitude,1.0,TLM_dec.acc[0]*acc_conversion,TLM_dec.acc[1]*acc_conversion,TLM_dec.acc[2]*acc_conversion, TLM_dec.gyro[0]*gyro_conversion,TLM_dec.gyro[1]*gyro_conversion,TLM_dec.gyro[2]*gyro_conversion);
+        snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
         //snprintf(printBuffer, 128,
         //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
         //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
