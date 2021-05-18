@@ -103,7 +103,7 @@ float sxSingleRanging(sx1280_custom *radio) {
     SetModulationParams(radio, 0x80, 0x18, 0x01); // Spreading factor 8, 800 BW (0x0A), CR 4/5. Sensitivity: -115
     SetPacketParamsLora(radio, 12, 0x80, 7, 0x20, 0x40);
     SetTxParams(radio, 0, 0xE0);
-    uint8_t rangingAddress = {0x12, 0x34, 0x56, 0x78};
+    uint8_t rangingAddress[] = {0x12, 0x34, 0x56, 0x78};
     WriteRegisterBytes(radio, 0x916, rangingAddress, 4);
 
 
