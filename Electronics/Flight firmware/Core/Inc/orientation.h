@@ -43,6 +43,6 @@ void orientation_init(Orientation *ori);
 
 void orientation_setGyro(Orientation *ori, float gyro[3]);
 void orientation_setAcc(Orientation *ori, float acc[3]);
-void orientation_update(Orientation *ori, float dt);
+void orientation_update(Orientation *ori, float dt, uint8_t apply_complementary);
 
 #endif /* INC_DRIVERS_ORIENTATION_H_ */

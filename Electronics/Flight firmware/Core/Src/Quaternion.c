@@ -304,7 +304,7 @@ void Quaternion_fromRate(float omega[3], float dt, Quaternion* output) {
 
     float l = hax*hax + hay * hay + haz*haz;
 
-    if (l > QUATERNION_EPS*QUATERNION_EPS) {
+    if (l > QUATERNION_EPS*QUATERNION_EPS*QUATERNION_EPS) {
         l = sqrt(l);
         float sinl = sin(l) / l;
 

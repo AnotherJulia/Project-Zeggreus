@@ -41,19 +41,19 @@ void orientation_init(Orientation *ori) {
 }
 
 void orientation_setGyro(Orientation *ori, float gyro[3]) {
-    ori->gyroVec[0] = gyro[0];
-    ori->gyroVec[1] = gyro[1];
-    ori->gyroVec[2] = gyro[2];
+    ori->gyroVec[0] = gyro[2];
+    ori->gyroVec[1] = gyro[0];
+    ori->gyroVec[2] = gyro[1];
 }
 
 void orientation_setAcc(Orientation *ori, float acc[3]) {
-    ori->accBodyVec[0] = acc[0];
-    ori->accBodyVec[1] = acc[1];
-    ori->accBodyVec[2] = acc[2];
+    ori->accBodyVec[0] = acc[2];
+    ori->accBodyVec[1] = acc[0];
+    ori->accBodyVec[2] = acc[1];
 }
 
 // based on https://github.com/daPhoosa/SimpleIMU-6/blob/master/SimpleIMU-6.ino
-void orientation_update(Orientation *ori, float dt) {
+void orientation_update(Orientation *ori, float dt, uint8_t apply_complementary) {
 
     //Quaternion_set(0,ori->gyroVec[0],ori->gyroVec[1],ori->gyroVec[2],&ori->gyroQuat);
     //Quaternion_set(0,ori->accBodyVec[0],ori->accBodyVec[1],ori->accBodyVec[2],&ori->accQuat);
@@ -71,7 +71,7 @@ void orientation_update(Orientation *ori, float dt) {
     correctionBody[2] = correctionBody[2] * 0.1;
 
     float GsSquared = vector_lenSquared(ori->accBodyVec) / (standardGravity * standardGravity);
-    if (GsSquared > 0.81 && GsSquared < 1.21) {
+    if (GsSquared > 0.81 && GsSquared < 1.21 && apply_complementary) {
         vector_sum(ori->gyroVec, correctionBody, ori->gyroVec);
     }
     Quaternion_fromRate(ori->gyroVec, dt, &ori->incrementalRotation);

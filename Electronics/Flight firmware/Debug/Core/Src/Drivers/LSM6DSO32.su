@@ -3,3 +3,5 @@ LSM6DSO32.c:34:9:LSM_WriteRegister	24	static
 LSM6DSO32.c:49:9:LSM_init	40	static
 LSM6DSO32.c:132:9:LSM_pollsensors	56	static
 LSM6DSO32.c:165:9:LSM_Convert	24	static
+LSM6DSO32.c:183:9:LSM_ReadDMA	48	static
+LSM6DSO32.c:200:6:LSM_ReadDMA_Complete	16	static

@@ -160,9 +160,12 @@ I2C_HandleTypeDef hi2c3;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi2_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 
 osThreadId ledTaskHandle;
 osThreadId musicTaskHandle;
@@ -171,11 +174,18 @@ osThreadId telemTaskHandle;
 osMessageQId BuzzerQueueHandle;
 /* USER CODE BEGIN PV */
 
+lsm6dso imu;
+uint8_t imu_ready = 0;
+
+Orientation ori;
+uint8_t apply_complementary = 1;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_SPI3_Init(void);
@@ -183,6 +193,7 @@ static void MX_TIM2_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C3_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM6_Init(void);
 void StartLedTask(void const * argument);
 void StartMusicTask(void const * argument);
 void startStateMachine(void const * argument);
@@ -438,7 +449,7 @@ void loraOrientation(uint8_t isTx) {
 
             orientation_setGyro(&ori, imu.gyroRPS);
             orientation_setAcc(&ori, imu.accMPS);
-            orientation_update(&ori, dt);
+            orientation_update(&ori, dt, 1);
 
             counter++;
 
@@ -706,6 +717,26 @@ void SDTesting() {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin == IMU_INT_Pin && imu_ready) {
+        LSM_ReadDMA(&imu);
+    }
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if (hspi->Instance == SPI2) {
+        LSM_ReadDMA_Complete(&imu);
+        float dt = ((float) __HAL_TIM_GET_COUNTER(&htim6))/1000000;
+        __HAL_TIM_SET_COUNTER(&htim6,0);
+
+        orientation_setGyro(&ori, imu.gyroRPS);
+        orientation_setAcc(&ori, imu.accMPS);
+        orientation_update(&ori, dt, apply_complementary);
+    }
+}
+
+
+
 /* USER CODE END 0 */
 
 /**
@@ -736,6 +767,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM3_Init();
   MX_SPI2_Init();
   MX_SPI3_Init();
@@ -744,6 +776,7 @@ int main(void)
   MX_FATFS_Init();
   MX_I2C3_Init();
   MX_ADC1_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
@@ -751,6 +784,8 @@ int main(void)
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+
+    HAL_TIM_Base_Start(&htim6);
 
     startupMusic();
     //while (1) {rick();}
@@ -773,9 +808,10 @@ int main(void)
     //servoToggleTest();
 
     // LSM6dso setup
-    lsm6dso imu;
-    uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,
-    SPI2_NSS_Pin);
+    orientation_init(&ori);
+    uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port, SPI2_NSS_Pin);
+    __HAL_TIM_SET_COUNTER(&htim6,0);
+    imu_ready = 1;
 
     SPL06 baro;
     uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
@@ -883,7 +919,7 @@ int main(void)
 
         orientation_setGyro(&ori, imu.gyroRPS);
         orientation_setAcc(&ori, imu.accMPS);
-        orientation_update(&ori, dt);
+        orientation_update(&ori, dt, 1);
 
         //sprintf(printBuffer, "z:%f,y:%f,x:%f\r\n", ori.eulerZYX[0], ori.eulerZYX[1], ori.eulerZYX[2]);
         if (counter % 30 == 0) {
@@ -1302,6 +1338,63 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 90-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 65535;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -1311,8 +1404,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
@@ -1328,6 +1421,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LORA_RESET_GPIO_Port, LORA_RESET_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : IMU_INT_Pin */
+  GPIO_InitStruct.Pin = IMU_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(IMU_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : RBF_Pin */
   GPIO_InitStruct.Pin = RBF_Pin;
@@ -1386,6 +1485,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
@@ -1801,6 +1904,7 @@ void startStateMachine(void const * argument)
             case SYSTEMS_CHECK:
                 // this state is the entry state, it performs startup checking of some peripherals
                 changeLed(100, 0, 0);
+                apply_complementary = 1;
                 // close the servo if necessary
                 servo_writeangle(&deployServo, SERVO_CLOSED_POSITION);
 
@@ -1828,6 +1932,7 @@ void startStateMachine(void const * argument)
 
             case IDLE:
                 changeLed(0, 100, 0);
+                apply_complementary = 1;
                 if (is_armed()) {
                     flight_state = FLIGHT_ERROR;
                     break;
@@ -1844,6 +1949,7 @@ void startStateMachine(void const * argument)
 
             case PREPARATION:
                 changeLed(0, 0, 100);
+                apply_complementary = 1;
                 if (is_breakwire_broken_debounce()) {
                     buzzer_beep(BEEP_LONG);
                     set_status_led(1);
@@ -1862,6 +1968,7 @@ void startStateMachine(void const * argument)
 
             case ARMED:
                 changeLed(100, 100, 0);
+                apply_complementary = 1;
                 if (!is_armed()) {
                     buzzer_beep(BEEP_LONG);
                     set_status_led(0);
@@ -1882,6 +1989,7 @@ void startStateMachine(void const * argument)
 
             case LAUNCHED:
                 changeLed(100, 100, 100);
+                apply_complementary = 0;
                 buzzer_beep(BEEP_SHORT);
                 buzzer_beep(BEEP_SHORT);
 
@@ -1919,6 +2027,7 @@ void startStateMachine(void const * argument)
             }
         } else {
             // when "soft on/off switch" is off. Play some music and disable everything
+            apply_complementary = 1;
             changeLed(100, 0, 0);
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
@@ -1949,14 +2058,12 @@ void StartTelemTask(void const * argument)
     SetTxParams(&radio, 0, 0xE0); // lowest power -18dBm
     osDelay(3);
 
-    lsm6dso imu;
-    uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);
+    //lsm6dso imu;
+    //uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);
 
     SPL06 baro;
     uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
 
-    Orientation ori;
-    orientation_init(&ori);
     uint32_t counter = 0;
 
     TLM_decoded TLM_dec;
@@ -1991,20 +2098,15 @@ void StartTelemTask(void const * argument)
 
     uint32_t lasttime = HAL_GetTick();
     uint32_t nowtime = HAL_GetTick();
-    float dt = 0;
     //changeLed(100, 100, 100);
     /* Infinite loop */
     for (;;) {
 
-        LSM_pollsensors(&imu);
+        //LSM_pollsensors(&imu);
         //changeLed(0, 0, 100);
-        nowtime = HAL_GetTick();
-        dt = (nowtime - lasttime) / 1000.0;
-        lasttime = nowtime;
-
-        orientation_setGyro(&ori, imu.gyroRPS);
-        orientation_setAcc(&ori, imu.accMPS);
-        orientation_update(&ori, dt);
+        //nowtime = HAL_GetTick();
+        //dt = (nowtime - lasttime) / 1000.0;
+        //lasttime = nowtime;
 
         counter++;
 

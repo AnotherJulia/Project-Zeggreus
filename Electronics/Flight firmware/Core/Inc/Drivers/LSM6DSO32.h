@@ -29,8 +29,8 @@ typedef struct {
     GPIO_TypeDef *csPinBank;
     uint16_t csPin;
 
-    uint8_t txBuf[7];
-    uint8_t rxBuf[8];
+    uint8_t txBuf[13];
+    uint8_t rxBuf[13];
 
     int16_t rawGyro[3];
     float gyroDPS[3];
@@ -55,5 +55,7 @@ uint8_t LSM_init(lsm6dso *imu, SPI_HandleTypeDef *spiHandle,
 uint8_t LSM_pollsensors(lsm6dso *imu);
 uint8_t LSM_Convert(lsm6dso *imu);
 
+uint8_t LSM_ReadDMA(lsm6dso *imu);
+void LSM_ReadDMA_Complete(lsm6dso *imu);
 
 #endif /* INC_DRIVERS_LSM6DSO32_H_ */

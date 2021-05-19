@@ -180,3 +180,32 @@ uint8_t LSM_Convert(lsm6dso *imu) {
     imu->gyroRPS[2] = imu->gyroDPS[2] * PI / 180;
 }
 
+uint8_t LSM_ReadDMA(lsm6dso *imu) {
+    uint8_t txBuf[13] = { LSM_OUTX_L_G | 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; // dummy bytes
+    uint8_t rxBuf[13];
+
+    HAL_GPIO_WritePin(imu->csPinBank, imu->csPin, GPIO_PIN_RESET);
+
+    if (HAL_SPI_TransmitReceive_DMA(imu->spiHandle, txBuf, imu->rxBuf, 13) == HAL_OK) {
+        return 1;
+    }
+    else {
+        HAL_GPIO_WritePin(imu->csPinBank, imu->csPin, GPIO_PIN_SET);
+        return 0;
+    }
+
+}
+
+void LSM_ReadDMA_Complete(lsm6dso *imu) {
+    HAL_GPIO_WritePin(imu->csPinBank, imu->csPin, GPIO_PIN_SET);
+
+    imu->rawGyro[0] = (uint16_t) (imu->rxBuf[2] << 8 | imu->rxBuf[1]);
+    imu->rawGyro[1] = (uint16_t) (imu->rxBuf[4] << 8 | imu->rxBuf[3]);
+    imu->rawGyro[2] = (uint16_t) (imu->rxBuf[6] << 8 | imu->rxBuf[5]);
+
+    imu->rawAcc[0] = (uint16_t) (imu->rxBuf[8] << 8 | imu->rxBuf[7]);
+    imu->rawAcc[1] = (uint16_t) (imu->rxBuf[10] << 8 | imu->rxBuf[9]);
+    imu->rawAcc[2] = (uint16_t) (imu->rxBuf[12] << 8 | imu->rxBuf[11]);
+    LSM_Convert(imu);
+}

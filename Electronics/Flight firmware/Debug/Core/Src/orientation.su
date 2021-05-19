@@ -4,4 +4,4 @@ orientation.c:24:7:vector_lenSquared	16	static
 orientation.c:28:6:orientation_init	16	static
 orientation.c:43:6:orientation_setGyro	16	static
 orientation.c:49:6:orientation_setAcc	16	static
-orientation.c:56:6:orientation_update	72	static
+orientation.c:56:6:orientation_update	80	static
