@@ -1726,7 +1726,7 @@ void StartMusicTask(void const * argument)
   /* USER CODE BEGIN StartMusicTask */
     /* Infinite loop */
 
-    uint16_t vol = 13; // 10
+    uint16_t vol = 0; // 13
     uint16_t beatlength = 50; // determines tempo
     float beatseparationconstant = 0.3;
 
@@ -2008,8 +2008,8 @@ void StartTelemTask(void const * argument)
     sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
     sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
 
-    //SetTxParams(0x06, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
-    SetTxParams(&radio, 0, 0xE0); // lowest power -18dBm
+    SetTxParams(&radio, 0x1F, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
+    //SetTxParams(&radio, 0, 0xE0); // lowest power -18dBm
     osDelay(3);
 
     //lsm6dso imu;
