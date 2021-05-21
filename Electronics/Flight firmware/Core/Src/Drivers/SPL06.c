@@ -27,6 +27,8 @@ uint8_t SPL06_Init(SPL06 *bar, I2C_HandleTypeDef *i2cHandle, uint8_t i2cAddress)
     bar->pressure_Pa   = 0.0f;
     bar->temperature_C = 0.0f;
 
+    bar->basepressure = 101325;
+
     uint8_t txBuf[2] = {0x00, 0x00};
     uint8_t rxBuf[2];
 
@@ -76,7 +78,7 @@ uint8_t SPL06_Init(SPL06 *bar, I2C_HandleTypeDef *i2cHandle, uint8_t i2cAddress)
     HAL_Delay(25);
 
     /* Set pressure configuration */
-    txBuf[0] = 0x33;
+    txBuf[0] = 0b01100011; // 64 Hz with 8 times oversampling
 
     status += (HAL_I2C_Mem_Write(bar->i2cHandle, bar->i2cAddress, SPL06_PRS_CFG, I2C_MEMADD_SIZE_8BIT, txBuf, 1, 500) == HAL_OK);
 
@@ -131,5 +133,7 @@ void SPL06_Read(SPL06 *bar) {
     float presRaw   = (float) pres / 7864320.0f;
     bar->pressure_Pa = bar->c00 + presRaw * (bar->c10 + presRaw * (bar->c20 + bar->c30 * presRaw))
                     + tempRaw * (bar->c01 + presRaw * (bar->c11 + bar->c21 * presRaw));
+
+    bar->altitude = 44330 * (1 - powf(bar->pressure_Pa/bar->basepressure, 0.190295));
 
 }

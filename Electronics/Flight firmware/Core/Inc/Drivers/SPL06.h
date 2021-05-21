@@ -43,6 +43,9 @@ typedef struct {
     float pressure_Pa;
     float temperature_C;
 
+    float basepressure;
+    float altitude;
+
 } SPL06;
 
 /*

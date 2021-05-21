@@ -160,6 +160,7 @@ I2C_HandleTypeDef hi2c3;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi1_tx;
 DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
 
@@ -171,6 +172,7 @@ osThreadId ledTaskHandle;
 osThreadId musicTaskHandle;
 osThreadId stateMachineTasHandle;
 osThreadId telemTaskHandle;
+osThreadId baroTaskHandle;
 osMessageQId BuzzerQueueHandle;
 /* USER CODE BEGIN PV */
 
@@ -179,6 +181,8 @@ uint8_t imu_ready = 0;
 
 Orientation ori;
 uint8_t apply_complementary = 1;
+
+SPL06 baro;
 
 /* USER CODE END PV */
 
@@ -198,6 +202,7 @@ void StartLedTask(void const * argument);
 void StartMusicTask(void const * argument);
 void startStateMachine(void const * argument);
 void StartTelemTask(void const * argument);
+void StartBaroTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -726,12 +731,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     if (hspi->Instance == SPI2) {
         LSM_ReadDMA_Complete(&imu);
-        float dt = ((float) __HAL_TIM_GET_COUNTER(&htim6))/1000000;
-        __HAL_TIM_SET_COUNTER(&htim6,0);
-
-        orientation_setGyro(&ori, imu.gyroRPS);
-        orientation_setAcc(&ori, imu.accMPS);
-        orientation_update(&ori, dt, apply_complementary);
     }
 }
 
@@ -813,18 +812,15 @@ int main(void)
     __HAL_TIM_SET_COUNTER(&htim6,0);
     imu_ready = 1;
 
-    SPL06 baro;
     uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
 
     if (barostatus != 5) {
-        while (1) {
 
             HAL_Delay(100);
             changeLed(100, 0, 0);
             HAL_Delay(100);
             changeLed(0, 0, 0);
 
-        }
     }
 
     //SDTesting();
@@ -836,8 +832,6 @@ int main(void)
 
     uint16_t rawadc;
 
-    Orientation ori;
-    orientation_init(&ori);
     uint32_t counter = 0;
 
   /* USER CODE END 2 */
@@ -880,6 +874,10 @@ int main(void)
   osThreadDef(telemTask, StartTelemTask, osPriorityNormal, 0, 256);
   telemTaskHandle = osThreadCreate(osThread(telemTask), NULL);
 
+  /* definition and creation of baroTask */
+  osThreadDef(baroTask, StartBaroTask, osPriorityNormal, 0, 128);
+  baroTaskHandle = osThreadCreate(osThread(baroTask), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -895,58 +893,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-        //SPL06_Read(&baro);
-        LSM_pollsensors(&imu);
-
-        //HAL_ADC_Start(&hadc1);
-        //HAL_ADC_PollForConversion(&hadc1, 100);
-        //rawadc = HAL_ADC_GetValue(&hadc1);
-
-        //sprintf(printBuffer, "Pres:%f,temp:%f,%f\r\n", baro.pressure_Pa, baro.temperature_C);
-        //sprintf(printBuffer, "%f\r\n", baro.pressure_Pa);
-        //sprintf(printBuffer, "gx: %d, gy: %d, gz: %d\r\n", imu.rawGyro[0], imu.rawGyro[1], imu.rawGyro[2]);
-        //sprintf(printBuffer, "gx: %d, gy: %d, gz: %d\r\n", imu.rawAcc[0], imu.rawAcc[1], imu.rawAcc[2]);
-        //sprintf(printBuffer, "gx:%f,gy:%f,gz:%f\r\n", imu.accMPS[0], imu.accMPS[1], imu.accMPS[2]);
-        //sprintf(printBuffer, "gx: %f, gy: %f, gz: %f\r\n", imu.gyroRPS[0], imu.gyroRPS[1], imu.gyroRPS[2]);
-        //sprintf(printBuffer, "y:%f,o:%f,g:%f,V:%d\r\n", yrot, imu.gyroDPSOffset[1],
-        //        imu.gyroDPS[1], rawadc);
-        //sprintf(printBuffer, "T:%f\r\n", (float) (25 + (((rawadc - 943) * 3.3 / 4096.0)) / 0.0025));
-
-        changeLed(0, 0, 100);
-        nowtime = HAL_GetTick();
-        dt = (nowtime - lasttime) / 1000.0;
-        lasttime = nowtime;
-
-        orientation_setGyro(&ori, imu.gyroRPS);
-        orientation_setAcc(&ori, imu.accMPS);
-        orientation_update(&ori, dt, 1);
-
-        //sprintf(printBuffer, "z:%f,y:%f,x:%f\r\n", ori.eulerZYX[0], ori.eulerZYX[1], ori.eulerZYX[2]);
-        if (counter % 30 == 0) {
-            sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",
-                    ori.orientationQuat.w, ori.orientationQuat.v[0],
-                    ori.orientationQuat.v[1], ori.orientationQuat.v[2]);
-            //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",ori.horQuat.w,ori.horQuat.v[0],ori.horQuat.v[1],ori.horQuat.v[2]);
-            //sprintf(printBuffer, "Counter: %d\r\n",counter);
-            //sprintf(printBuffer, "gx: %d, gy: %d, gz: %d\r\n", imu.rawGyro[0], imu.rawGyro[1], imu.rawGyro[2]);
-            CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
-        }
-        counter++;
 
         HAL_Delay(1);
 
-        //HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET);
-        //loraRet = HAL_SPI_TransmitReceive(&hspi3, loraTxBuf, loraRxBuf, 2, 1000);
-        //HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
-
-        /*
-         for (int i = 0; i < 31 * 2; i++) {
-         changeLed((uint8_t) ((cos(((double) i) / 75) + 1) * 128),
-         (uint8_t) ((sin(((double) i) / 50) + 1) * 128),
-         (uint8_t) ((sin(((double) i) / 100) + 1) * 128));
-         HAL_Delay(2);
-         }
-         */
     }
   /* USER CODE END 3 */
 }
@@ -1079,7 +1028,7 @@ static void MX_I2C3_Init(void)
 
   /* USER CODE END I2C3_Init 1 */
   hi2c3.Instance = I2C3;
-  hi2c3.Init.ClockSpeed = 100000;
+  hi2c3.Init.ClockSpeed = 400000;
   hi2c3.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c3.Init.OwnAddress1 = 0;
   hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -1383,6 +1332,7 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream3_IRQn interrupt configuration */
@@ -1391,6 +1341,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+  /* DMA2_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
 
 }
 
@@ -2032,6 +1985,7 @@ void startStateMachine(void const * argument)
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
             servo_disable(&deployServo);
+            baro.basepressure = baro.pressure_Pa; // Continously "zero out" altitude when soft off
             disable_camera();
         }
         osDelay(1);
@@ -2060,9 +2014,6 @@ void StartTelemTask(void const * argument)
 
     //lsm6dso imu;
     //uint8_t lsm_init_status = LSM_init(&imu, &hspi2, SPI2_NSS_GPIO_Port,SPI2_NSS_Pin);
-
-    SPL06 baro;
-    uint8_t barostatus = SPL06_Init(&baro, &hi2c3, 0x77);
 
     uint32_t counter = 0;
 
@@ -2110,43 +2061,68 @@ void StartTelemTask(void const * argument)
 
         counter++;
 
-        if (counter % 20 == 0) {
+        TLM_dec.vbat = get_battery_voltage();
+        TLM_dec.systick = osKernelSysTick();
+        TLM_dec.acc[0] = imu.rawAcc[0];
+        TLM_dec.acc[1] = imu.rawAcc[1];
+        TLM_dec.acc[2] = imu.rawAcc[2];
+        TLM_dec.gyro[0] = imu.rawGyro[0];
+        TLM_dec.gyro[1] = imu.rawGyro[1];
+        TLM_dec.gyro[2] = imu.rawGyro[2];
+        TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
+        TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
+        TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
+        TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
+        // SPL06_Read(&baro);
+        TLM_dec.baro = baro.pressure_Pa;
+        TLM_dec.temp = baro.temperature_C;
+        TLM_dec.altitude = baro.altitude;
 
-            TLM_dec.vbat = get_battery_voltage();
-            TLM_dec.systick = osKernelSysTick();
-            TLM_dec.acc[0] = imu.rawAcc[0];
-            TLM_dec.acc[1] = imu.rawAcc[1];
-            TLM_dec.acc[2] = imu.rawAcc[2];
-            TLM_dec.gyro[0] = imu.rawGyro[0];
-            TLM_dec.gyro[1] = imu.rawGyro[1];
-            TLM_dec.gyro[2] = imu.rawGyro[2];
-            TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
-            TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
-            TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
-            TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
-            SPL06_Read(&baro);
-            TLM_dec.baro = baro.pressure_Pa;
-            TLM_dec.altitude = 44330 * (1 - pow(baro.pressure_Pa/101325, 0.190295));
+        //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
+        //        data[1], data[2], data[3]);
+        //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
+        //CDC_Transmit_FS((uint8_t*) printBuffer,
+        //        MIN(strlen(printBuffer), 128));
 
-            //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
-            //        data[1], data[2], data[3]);
-            //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
-            //CDC_Transmit_FS((uint8_t*) printBuffer,
-            //        MIN(strlen(printBuffer), 128));
-
-            encode_TLM(&TLM_dec, &TLM_enc);
-            WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
-            //WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
-            osDelay(1);
-            ClrIrqStatus(&radio, 1); // clear txdone irq
-            osDelay(1);
-            SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
-        }
-
+        encode_TLM(&TLM_dec, &TLM_enc);
+        WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
+        //WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
         osDelay(1);
+        ClrIrqStatus(&radio, 1); // clear txdone irq
+        osDelay(1);
+        SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
+
+
+        osDelay(20);
 
     }
   /* USER CODE END StartTelemTask */
+}
+
+/* USER CODE BEGIN Header_StartBaroTask */
+/**
+* @brief Function implementing the baroTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartBaroTask */
+void StartBaroTask(void const * argument)
+{
+  /* USER CODE BEGIN StartBaroTask */
+  /* Infinite loop */
+    uint32_t counter = 0;
+    for (;;) {
+        float dt = ((float) __HAL_TIM_GET_COUNTER(&htim6))/1000000;
+        __HAL_TIM_SET_COUNTER(&htim6,0);
+        orientation_setGyro(&ori, imu.gyroRPS);
+        orientation_setAcc(&ori, imu.accMPS);
+        orientation_update(&ori, dt, apply_complementary);
+        if (counter % 50 == 0) { // 20 Hz
+            SPL06_Read(&baro);
+        }
+        osDelay(1);
+    }
+  /* USER CODE END StartBaroTask */
 }
 
  /**

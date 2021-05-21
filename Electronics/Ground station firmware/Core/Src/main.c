@@ -275,6 +275,7 @@ void loraTelemetry() {
         HAL_Delay(1);
         //GetRxBufferStatus(); // TODO
 
+
         ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),(uint8_t*) &TLM_enc);
         //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
         decode_TLM(&TLM_enc, &TLM_dec);
@@ -282,9 +283,10 @@ void loraTelemetry() {
         //        TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
         //        TLM_dec.altitude, TLM_dec.ranging);
 
-        //snprintf(printBuffer,256,"/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%f,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f*/\r\n", TLM_dec.systick, pkt_count, TLM_dec.vbat,TLM_dec.temp,TLM_dec.altitude,TLM_dec.baro/1000, TLM_dec.temp,0.0,TLM_dec.systick,
-        //        longitude, latitude, TLM_dec.altitude,1.0,TLM_dec.acc[0]*acc_conversion,TLM_dec.acc[1]*acc_conversion,TLM_dec.acc[2]*acc_conversion, TLM_dec.gyro[0]*gyro_conversion,TLM_dec.gyro[1]*gyro_conversion,TLM_dec.gyro[2]*gyro_conversion);
-        snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
+        snprintf(printBuffer,256,"/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%f,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f*/\r\n", TLM_dec.systick, pkt_count, TLM_dec.vbat,TLM_dec.temp,TLM_dec.altitude,TLM_dec.baro/1000, TLM_dec.temp,0.0,TLM_dec.systick,
+                longitude, latitude, TLM_dec.altitude,1.0,TLM_dec.acc[0]*acc_conversion,TLM_dec.acc[1]*acc_conversion,TLM_dec.acc[2]*acc_conversion, TLM_dec.gyro[0]*gyro_conversion,TLM_dec.gyro[1]*gyro_conversion,TLM_dec.gyro[2]*gyro_conversion,
+                radio.rssi);
+        //snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
         //snprintf(printBuffer, 128,
         //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
         //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
