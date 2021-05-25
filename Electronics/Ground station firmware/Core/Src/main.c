@@ -54,11 +54,11 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi3;
 
-TIM_HandleTypeDef htim2;
-
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+
+uint8_t is_ant1 = 1;
 
 /* USER CODE END PV */
 
@@ -68,9 +68,15 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI3_Init(void);
-static void MX_TIM2_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
+
+void switchAntenna() {
+    is_ant1 = !is_ant1;
+
+    HAL_GPIO_WritePin(SWANT_GPIO_Port, SWANT_Pin, is_ant1);
+    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, is_ant1);
+}
 
 /* USER CODE END PFP */
 
@@ -151,9 +157,9 @@ void loraTesting(uint8_t isTx) {
             ReadBuffer(&radio, rxStartBufferPointer, 32, data);
             changeLed(data[1], data[2], data[3]);
             if (data[2]) {
-                htim2.Instance->CCR4 = 1000;
+                //htim2.Instance->CCR4 = 1000;
             } else {
-                htim2.Instance->CCR4 = 2000;
+                //htim2.Instance->CCR4 = 2000;
             }
 
             HAL_Delay(10);
@@ -223,7 +229,7 @@ void loraTelemetry() {
     char printBuffer[256];
 
     // rx mode
-    SetDioIrqParams(&radio, 1 << 1, 1 << 1, 0, 0); //rxdone on gpio1
+    SetDioIrqParams(&radio, (1 << 1) | (1 << 6), 1 << 1, 0, 0); //rxdone on gpio1, crcerror on as well
     HAL_Delay(1);
 
     uint8_t rxStartBufferPointer = 0;
@@ -252,12 +258,22 @@ void loraTelemetry() {
     float longitude = 5.922696;
 
     float acc_conversion = 0.0095712904;
-    float gyro_conversion = 0.070;
+    float gyro_conversion = 0.00122173047; //0.070;
 
     uint32_t pkt_count = 0;
 
     //changeLed(0, 100, 0);
     uint8_t data[4];
+    uint32_t lasttime = HAL_GetTick();
+    uint32_t nowtime = HAL_GetTick();
+    uint32_t delay = 0;
+
+    uint8_t is_soft_enabled;
+    uint8_t is_armed ;
+    uint8_t is_breakwire_connected;
+    uint8_t is_camera_on;
+
+    uint8_t button_pressed = 0;
     while (1) {
 
         //SetRx(0x00, 0xffff); // continous rx
@@ -265,32 +281,77 @@ void loraTelemetry() {
         //SetRx(0x02, 200); // 200 ms timeout
         HAL_Delay(1);
         // wait for reception:
-        while (!HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+        for (int i = 0; i < 35; i++) { // 35 ms timeout
+            if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                nowtime = HAL_GetTick();
+                delay = nowtime - lasttime  ;
+                lasttime = nowtime;
+                break;
+            }
+            HAL_Delay(1);
         }
 
-        pkt_count++;
+        if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
 
-        GetPacketStatusLora(&radio);
-        ClrIrqStatus(&radio, 1 << 1); // clear rxdone Irq
-        HAL_Delay(1);
-        //GetRxBufferStatus(); // TODO
+            pkt_count++;
 
+            GetPacketStatusLora(&radio);
+            GetIrqStatus(&radio);
 
-        ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),(uint8_t*) &TLM_enc);
-        //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
-        decode_TLM(&TLM_enc, &TLM_dec);
-        //snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
-        //        TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
-        //        TLM_dec.altitude, TLM_dec.ranging);
+            ClrIrqStatus(&radio, (1 << 1) | (1 << 6)); // clear rxdone Irq and crcerror
+            HAL_Delay(1);
+            //GetRxBufferStatus(); // TODO
 
-        snprintf(printBuffer,256,"/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%f,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f*/\r\n", TLM_dec.systick, pkt_count, TLM_dec.vbat,TLM_dec.temp,TLM_dec.altitude,TLM_dec.baro/1000, TLM_dec.temp,0.0,TLM_dec.systick,
-                longitude, latitude, TLM_dec.altitude,1.0,TLM_dec.acc[0]*acc_conversion,TLM_dec.acc[1]*acc_conversion,TLM_dec.acc[2]*acc_conversion, TLM_dec.gyro[0]*gyro_conversion,TLM_dec.gyro[1]*gyro_conversion,TLM_dec.gyro[2]*gyro_conversion,
-                radio.rssi);
-        //snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
-        //snprintf(printBuffer, 128,
-        //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
-        //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
-        CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+            ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),
+                    (uint8_t*) &TLM_enc);
+            //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
+            decode_TLM(&TLM_enc, &TLM_dec);
+            //snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
+            //        TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
+            //        TLM_dec.altitude, TLM_dec.ranging);
+
+            is_soft_enabled = (TLM_dec.pin_states & 1);
+            is_armed = (TLM_dec.pin_states & (1 << 1)) >> 1;
+            is_breakwire_connected = (TLM_dec.pin_states & (1 << 2)) >> 2;
+            is_camera_on = (TLM_dec.pin_states & (1 << 3)) >> 3;
+
+            snprintf(printBuffer, 256,
+                    "/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%ld,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d*/\r\n",
+                    TLM_dec.systick, pkt_count, TLM_dec.vbat, TLM_dec.temp,
+                    TLM_dec.altitude, TLM_dec.baro / 1000, TLM_dec.temp, delay,
+                    TLM_dec.systick, longitude, latitude, TLM_dec.altitude, 0.0,
+                    TLM_dec.acc[0] * acc_conversion,
+                    TLM_dec.acc[1] * acc_conversion,
+                    TLM_dec.acc[2] * acc_conversion,
+                    TLM_dec.gyro[0] * gyro_conversion,
+                    TLM_dec.gyro[1] * gyro_conversion,
+                    TLM_dec.gyro[2] * gyro_conversion, radio.rssi,
+                    radio.crcError, is_ant1 ? 1 : 2, is_soft_enabled, is_armed,
+                    is_breakwire_connected, is_camera_on,TLM_dec.flight_state);
+
+            //snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
+            //snprintf(printBuffer, 128,
+            //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
+            //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
+            CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+            HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+
+        } else {
+            HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+            // try other antenna
+            switchAntenna();
+        }
+
+        if (!HAL_GPIO_ReadPin(BTN1_GPIO_Port, BTN1_Pin)) {
+            if (!button_pressed) {
+                switchAntenna();
+                button_pressed = 1;
+            }
+        }
+        else {
+            button_pressed = 0;
+        }
+
         HAL_Delay(1);
 
     }
@@ -330,7 +391,6 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_SPI3_Init();
-  MX_TIM2_Init();
   MX_USART2_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
@@ -338,15 +398,15 @@ int main(void)
 
   HAL_Delay(200);
   /* USER CODE END 2 */
-  char printBuffer[128];
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  sprintf(printBuffer,"/*Project Zeggreus,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10*/");
-	  CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
-	  HAL_Delay(500);
-	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	  //sprintf(printBuffer,"/*Project Zeggreus,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10*/");
+	  //CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+	  //HAL_Delay(500);
+	  //HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
 
     /* USER CODE END WHILE */
@@ -522,59 +582,6 @@ static void MX_SPI3_Init(void)
 }
 
 /**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM2_Init(void)
-{
-
-  /* USER CODE BEGIN TIM2_Init 0 */
-
-  /* USER CODE END TIM2_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM2_Init 1 */
-
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
-
-  /* USER CODE END TIM2_Init 2 */
-  HAL_TIM_MspPostInit(&htim2);
-
-}
-
-/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -617,14 +624,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED1_Pin|RXEN_Pin|TXEN_Pin|LORA_NSS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LED1_Pin|LED2_Pin|RXEN_Pin|TXEN_Pin
+                          |LORA_NSS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SWANT_GPIO_Port, SWANT_Pin, GPIO_PIN_SET);
@@ -635,14 +643,26 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LORA_RESET_GPIO_Port, LORA_RESET_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : LED1_Pin MODE_Pin RXEN_Pin TXEN_Pin
-                           LORA_NSS_Pin */
-  GPIO_InitStruct.Pin = LED1_Pin|MODE_Pin|RXEN_Pin|TXEN_Pin
-                          |LORA_NSS_Pin;
+  /*Configure GPIO pin : BTN1_Pin */
+  GPIO_InitStruct.Pin = BTN1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(BTN1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LED1_Pin LED2_Pin MODE_Pin RXEN_Pin
+                           TXEN_Pin LORA_NSS_Pin */
+  GPIO_InitStruct.Pin = LED1_Pin|LED2_Pin|MODE_Pin|RXEN_Pin
+                          |TXEN_Pin|LORA_NSS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DEBUG_Pin */
+  GPIO_InitStruct.Pin = DEBUG_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(DEBUG_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SWANT_Pin */
   GPIO_InitStruct.Pin = SWANT_Pin;

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaGeometryFile creator="MatrixCalc" version="20181214">
+  <Components>
+    <Shape name="Components\component1:dipole" id="1" visible="1" material="PEC" line_material="">
+      <MeshGroup0D list=""/>
+      <MeshGroup1D list=""/>
+      <MeshGroup2D>
+        <Pos list="1 2 3 17 18 19"/>
+        <Neg list=""/>
+        <DS list=""/>
+      </MeshGroup2D>
+      <MeshGroup3D list=""/>
+    </Shape>
+    <Shape name="Components\component1:solid1" id="2" visible="1" material="PEC" line_material="">
+      <MeshGroup0D list=""/>
+      <MeshGroup1D list=""/>
+      <MeshGroup2D>
+        <Pos list="4 5 6 7"/>
+        <Neg list=""/>
+        <DS list=""/>
+      </MeshGroup2D>
+      <MeshGroup3D list=""/>
+    </Shape>
+    <Shape name="Components\component1:solid2" id="3" visible="1" material="PEC" line_material="">
+      <MeshGroup0D list=""/>
+      <MeshGroup1D list=""/>
+      <MeshGroup2D>
+        <Pos list="8 9 10 11"/>
+        <Neg list=""/>
+        <DS list=""/>
+      </MeshGroup2D>
+      <MeshGroup3D list=""/>
+    </Shape>
+    <Shape name="Components\component1:solid3" id="4" visible="1" material="PEC" line_material="">
+      <MeshGroup0D list=""/>
+      <MeshGroup1D list=""/>
+      <MeshGroup2D>
+        <Pos list="12 13 14 15"/>
+        <Neg list=""/>
+        <DS list=""/>
+      </MeshGroup2D>
+      <MeshGroup3D list=""/>
+    </Shape>
+    <Shape name="Ports\port1" id="5" visible="1" material="$PortFaceMaterial$" line_material="">
+      <MeshGroup0D list=""/>
+      <MeshGroup1D list=""/>
+      <MeshGroup2D>
+        <Pos list=""/>
+        <Neg list=""/>
+        <DS list="16"/>
+      </MeshGroup2D>
+      <MeshGroup3D list=""/>
+    </Shape>
+  </Components>
+  <SimulationDomain min="-57.97924423218 -41.97924423218 -61.22924423218" max="83.97924804688 30.87924575806 61.22924423218"/>
+  <Materials>
+    <Material name="air_0" priority="1">
+      <Drawstyle color="1 1 1" linestrength="1" transparency="0"/>
+    </Material>
+    <Material name="PEC" priority="1">
+      <Drawstyle color="1 1 1" linestrength="1" transparency="0"/>
+    </Material>
+  </Materials>
+  <GeometryFile filename="3d.slm" type="slim" subdomain_id=""/>
+  <MeshType type="HEX"/>
+  <Groups/>
+  <HexMesh>
+    <Dimensions nx="59" ny="26" nz="38"/>
+    <MeshPlanesX values="-57.9792458 -49.03081393403 -40.08238206806 -32.06513451776 -30.7100896785 -29.35504483925 -28 -27 -26 -25 -24 -23 -22 -21 -20 -18.63498597054 -17.26997194108 -15.90495791163 -4.995042088375 -3.630028058917 -2.265014029458 -0.9 0 0.9 2.265014029458 3.630028058917 4.995042088375 15.90495791163 17.26997194108 18.63498597054 20 21 22 23 24 25 26 27.31006075457 28.62012150914 29.9301822637 36 42.0698177363 43.37987849086 44.68993924543 46 47 48 49 50 51 52 53 54 55.35504483925 56.7100896785 58.06513451776 66.08238206806 75.03081393403 83.9792458"/>
+    <MeshPlanesY values="-41.9792458 -33.03081393403 -24.08238206806 -16.06513451776 -14.7100896785 -13.35504483925 -12 -11 -10 -9 -8 -7 -6 -5 -4 -3 -1.95 -0.9 0 0.9 2.255044839252 3.610089678504 4.965134517756 12.98238206806 21.93081393403 30.8792458"/>
+    <MeshPlanesZ values="-61.2292458 -52.25252322681 -43.27580065363 -35.31617696169 -33.96078464113 -32.60539232056 -31.25 -30 -28.75 -27.5 -26.15748165812 -24.81496331624 -23.47244497436 -14.75 -6.027555025643 -4.685036683762 -3.342518341881 -2 -0.6666666666667 0.6666666666667 2 3.342518341881 4.685036683762 6.027555025643 14.75 23.47244497436 24.81496331624 26.15748165812 27.5 28.75 30 31.25 32.60539232056 33.96078464113 35.31617696169 43.27580065363 52.25252322681 61.2292458"/>
+  </HexMesh>
+</MetaGeometryFile>

@@ -54,6 +54,8 @@ typedef enum {
 
 static state_type flight_state = SYSTEMS_CHECK;
 
+static uint8_t servo_setting = 0;
+
 typedef enum {
     REPEAT_BEEP = 0, KSP_MAIN = 1, RICK = 2, JINGLEBELL = 3,
 } buzzer_sound;
@@ -65,6 +67,7 @@ static uint16_t buzzer_delay = 1000;
 uint32_t last_logged_deploy_time = 0;
 
 uint8_t is_camera_recording = 0;
+uint8_t is_camera_on = 0;
 
 // Music (Rick Astley)
 
@@ -287,6 +290,7 @@ void disable_recording() {
 void enable_camera() {
     HAL_GPIO_WritePin(CAM_POWER_GPIO_Port, CAM_POWER_Pin, GPIO_PIN_SET);
     is_camera_recording = 0;
+    is_camera_on = 1;
 }
 
 void disable_camera() {
@@ -295,7 +299,7 @@ void disable_camera() {
         osDelay(1000);
         is_camera_recording = 0;
     }
-
+    is_camera_on = 0;
     HAL_GPIO_WritePin(CAM_POWER_GPIO_Port, CAM_POWER_Pin, GPIO_PIN_RESET);
 }
 
@@ -1827,6 +1831,7 @@ void startStateMachine(void const * argument)
     Servo deployServo;
     servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
     servo_disable(&deployServo);
+    servo_setting = 0;
 
     /* Infinite loop */
     for (;;) {
@@ -1860,6 +1865,7 @@ void startStateMachine(void const * argument)
                 apply_complementary = 1;
                 // close the servo if necessary
                 servo_writeangle(&deployServo, SERVO_CLOSED_POSITION);
+                servo_setting = 1;
 
                 float vbat = get_battery_voltage();
 
@@ -1952,6 +1958,7 @@ void startStateMachine(void const * argument)
 
                     if (is_armed()) {
                         servo_writeangle(&deployServo, SERVO_DEPLOY_POSITION);
+                        servo_setting = 2;
 
                         last_logged_deploy_time = timeSinceLaunch;
                         buzzer_clear_queue();
@@ -1985,6 +1992,7 @@ void startStateMachine(void const * argument)
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
             servo_disable(&deployServo);
+            servo_setting = 0;
             baro.basepressure = baro.pressure_Pa; // Continously "zero out" altitude when soft off
             disable_camera();
         }
@@ -2061,6 +2069,13 @@ void StartTelemTask(void const * argument)
 
         counter++;
 
+        for (int i = 0; i < 10; i++) {
+            if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                break;
+            }
+            osDelay(5);
+        }
+
         TLM_dec.vbat = get_battery_voltage();
         TLM_dec.systick = osKernelSysTick();
         TLM_dec.acc[0] = imu.rawAcc[0];
@@ -2077,6 +2092,9 @@ void StartTelemTask(void const * argument)
         TLM_dec.baro = baro.pressure_Pa;
         TLM_dec.temp = baro.temperature_C;
         TLM_dec.altitude = baro.altitude;
+        TLM_dec.flight_state = flight_state;
+        TLM_dec.pin_states = (is_soft_enabled()) | (is_armed() << 1) | (is_breakwire_connected() << 2) | (is_camera_on << 3);
+        TLM_dec.servo_state = servo_setting;
 
         //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
         //        data[1], data[2], data[3]);
@@ -2092,8 +2110,7 @@ void StartTelemTask(void const * argument)
         osDelay(1);
         SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
 
-
-        osDelay(20);
+        osDelay(10);
 
     }
   /* USER CODE END StartTelemTask */

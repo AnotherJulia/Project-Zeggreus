@@ -5,29 +5,69 @@
          "t":"Mission Status",
          "d":[
             {
+               "t":"Flight state",
+               "v":"%28",
+               "u":"-"
+            },
+            {
                "t":"Runtime",
                "v":"%2",
                "u":"ms"
             },
             {
-               "t":"Packet count",
-               "v":"%3"
+               "t":"Soft enabled",
+               "v":"%24",
+               "u":"-"
             },
             {
-               "t":"Battery voltage",
-               "v":"%4",
-               "g":true,
-               "u":"V",
-               "w":"bar",
-               "min":7.2,
-               "max":8.4
+               "t":"Armed",
+               "v":"%25",
+               "u":"-"
+            },
+            {
+               "t":"BW connected",
+               "v":"%26",
+               "u":"-"
+            },
+            {
+               "t":"Camera enabled",
+               "v":"%27",
+               "u":"-"
+            }
+         ]
+      },
+      {
+         "t":"RF status",
+         "d":[
+            {
+               "t":"Packet count",
+               "v":"%3"
             },
             {
                "t":"RSSI",
                "v":"%21",
                "g":true,
                "u":"dB"
+            },
+            {
+               "t":"CRC error",
+               "v":"%22",
+               "g":true,
+               "u":"-"
+            },
+            {
+               "t":"Packet delay",
+               "v":"%9",
+               "g":false,
+               "u":"ms"
+            },
+            {
+               "t":"Selected antenna",
+               "v":"%23",
+               "g":false,
+               "u":"-"
             }
+              
          ]
       },
       {
@@ -51,15 +91,18 @@
                "g":true
             },
             {
-               "t":"External Temperature",
-               "v":"%8",
+               "t":"Battery voltage",
+               "v":"%4",
                "g":true,
-               "u":"°C"
+               "u":"V",
+               "w":"bar",
+               "min":7.2,
+               "max":8.4
             },
             {
-               "t":"Humidity",
-               "v":"%9",
-               "g":true,
+               "t":"External Temperature",
+               "v":"%8",
+               "g":false,
                "u":"°C"
             }
          ]

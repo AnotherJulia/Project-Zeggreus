@@ -178,6 +178,23 @@ void ClrIrqStatus(sx1280_custom *radio, uint16_t irqMask) {
     sxSpiTransmit(radio, buf, sizeof(buf));
 }
 
+void GetIrqStatus(sx1280_custom *radio) {
+
+    uint8_t loraRxBuf[4];
+    uint8_t loraTxBuf[] = { 0x15, 0x00, 0x00, 0x00 };
+
+    sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, sizeof(loraTxBuf));
+
+    radio->IrqStatus = (uint16_t) (loraRxBuf[2] << 8 | loraRxBuf[3]);
+
+    if (radio->IrqStatus & (1 << 6)) {
+        radio->crcError = 1;
+    }
+    else {
+        radio->crcError = 0;
+    }
+}
+
 void SetTx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount) {
     uint8_t buf[4];
     buf[0] = 0X83;

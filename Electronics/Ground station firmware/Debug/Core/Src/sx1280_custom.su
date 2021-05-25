@@ -17,9 +17,10 @@ sx1280_custom.c:140:6:WriteBuffer	32	static
 sx1280_custom.c:150:6:ReadBuffer	32	static
 sx1280_custom.c:158:6:SetDioIrqParams	40	static
 sx1280_custom.c:173:6:ClrIrqStatus	24	static
-sx1280_custom.c:181:6:SetTx	24	static
-sx1280_custom.c:190:6:SetRx	24	static
-sx1280_custom.c:199:6:GetPacketStatusLora	24	static
-sx1280_custom.c:212:6:GetRxBufferStatus	16	static
-sx1280_custom.c:216:6:WriteRegisterByte	24	static
-sx1280_custom.c:225:6:WriteRegisterBytes	32	static
+sx1280_custom.c:181:6:GetIrqStatus	24	static
+sx1280_custom.c:198:6:SetTx	24	static
+sx1280_custom.c:207:6:SetRx	24	static
+sx1280_custom.c:216:6:GetPacketStatusLora	24	static
+sx1280_custom.c:229:6:GetRxBufferStatus	16	static
+sx1280_custom.c:233:6:WriteRegisterByte	24	static
+sx1280_custom.c:242:6:WriteRegisterBytes	32	static

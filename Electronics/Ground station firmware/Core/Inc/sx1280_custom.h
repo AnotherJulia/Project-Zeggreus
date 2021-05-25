@@ -17,6 +17,8 @@ typedef struct {
 
     uint8_t rssiSync;
     int8_t rawSnr;
+    uint16_t IrqStatus;
+    uint8_t crcError;
 
     float rssi;
     float snr;
@@ -46,6 +48,7 @@ void SetDioIrqParams(sx1280_custom *radio, uint16_t irqMask, uint16_t dio1Mask, 
         uint16_t dio3Mask);
 
 void ClrIrqStatus(sx1280_custom *radio, uint16_t irqMask);
+void GetIrqStatus(sx1280_custom *radio);
 
 void SetTx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount);
 void SetRx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount);
