@@ -69,12 +69,16 @@ void Error_Handler(void);
 #define RBF_GPIO_Port GPIOA
 #define CAM_POWER_Pin GPIO_PIN_2
 #define CAM_POWER_GPIO_Port GPIOA
+#define FLASH_NSS_Pin GPIO_PIN_4
+#define FLASH_NSS_GPIO_Port GPIOA
 #define SD_NSS_Pin GPIO_PIN_4
 #define SD_NSS_GPIO_Port GPIOC
 #define VTX_BTN1_Pin GPIO_PIN_5
 #define VTX_BTN1_GPIO_Port GPIOC
 #define SPI2_NSS_Pin GPIO_PIN_12
 #define SPI2_NSS_GPIO_Port GPIOB
+#define EXPORT_BLACKBOX_Pin GPIO_PIN_10
+#define EXPORT_BLACKBOX_GPIO_Port GPIOA
 #define LORA_NSS_Pin GPIO_PIN_15
 #define LORA_NSS_GPIO_Port GPIOA
 #define LORA_DIO1_Pin GPIO_PIN_12

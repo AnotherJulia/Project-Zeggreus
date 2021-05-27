@@ -58,6 +58,12 @@ void SetStandbyRC(sx1280_custom *radio) {
 
     sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, 2);
 }
+void SetStandbyXOSC(sx1280_custom *radio) {
+    uint8_t loraRxBuf[2];
+    uint8_t loraTxBuf[] = { 0x80, 0x01 }; // Standby XOSC
+
+    sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, 2);
+}
 
 void SetTxContinuousWave(sx1280_custom *radio) {
     uint8_t loraRxBuf[1];
@@ -105,7 +111,41 @@ float sxSingleRanging(sx1280_custom *radio) {
     SetTxParams(radio, 0, 0xE0);
     uint8_t rangingAddress[] = {0x12, 0x34, 0x56, 0x78};
     WriteRegisterBytes(radio, 0x916, rangingAddress, 4);
+}
 
+void setRangingRole(sx1280_custom *radio, uint8_t is_master) {
+    uint8_t loraTxBuf[] = { 0xA3, is_master };
+    sxSpiTransmit(radio, loraTxBuf, 2);
+}
+
+void sxStandardRangingMaster(sx1280_custom *radio) {
+    uint8_t rangingAddress[] = {0x12, 0x34, 0x56, 0x78};
+    // master settings
+    WriteRegisterBytes(radio, 0x912, rangingAddress, 4);
+    HAL_Delay(1);
+    uint16_t cal = 11340;
+    uint8_t calibration[] = { (uint8_t) ((cal >> 8) & 0xFF), (uint8_t) (cal & 0xFF)};
+    WriteRegisterBytes(radio, 0x92C, calibration, 2);
+    HAL_Delay(1);
+    setRangingRole(radio, 1);
+}
+void sxStandardRangingSlave(sx1280_custom *radio) {
+    uint8_t rangingAddress[] = {0x12, 0x34, 0x56, 0x78};
+    // slave settings
+    WriteRegisterBytes(radio, 0x916, rangingAddress, 4);
+    HAL_Delay(1);
+    uint8_t temp = ReadRegisterByte(radio, 0x931) | 0b00111111;
+    HAL_Delay(1);
+    WriteRegisterByte(radio, 0x931, temp); // 8 bit ranging address.
+    HAL_Delay(1);
+    setRangingRole(radio, 0);
+}
+
+void singleRangingRTOS(sx1280_custom *radio) {
+    SetStandbyXOSC(radio);
+    osDelay(1);
+    uint8_t temp = (ReadRegisterByte(radio, 0x0924) & 0xCF) | (0b00000001 << 4); // Average RSSI filtered result
+    // 150 / (2^12 * 0.816) = 0.04487879136
 
 }
 
@@ -178,6 +218,23 @@ void ClrIrqStatus(sx1280_custom *radio, uint16_t irqMask) {
     sxSpiTransmit(radio, buf, sizeof(buf));
 }
 
+void GetIrqStatus(sx1280_custom *radio) {
+
+    uint8_t loraRxBuf[4];
+    uint8_t loraTxBuf[] = { 0x15, 0x00, 0x00, 0x00 };
+
+    sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, sizeof(loraTxBuf));
+
+    radio->IrqStatus = (uint16_t) (loraRxBuf[2] << 8 | loraRxBuf[3]);
+
+    if (radio->IrqStatus & (1 << 6)) {
+        radio->crcError = 1;
+    }
+    else {
+        radio->crcError = 0;
+    }
+}
+
 void SetTx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount) {
     uint8_t buf[4];
     buf[0] = 0X83;
@@ -212,6 +269,20 @@ void GetPacketStatusLora(sx1280_custom *radio) {
 void GetRxBufferStatus(sx1280_custom *radio) {
 
 }
+
+uint8_t ReadRegisterByte(sx1280_custom *radio, uint16_t address) {
+    uint8_t loraTxBuf[5];
+    uint8_t loraRxBuf[5];
+    loraTxBuf[0] = 0x19;
+    loraTxBuf[1] = (uint8_t) (((uint16_t) address >> 8) & 0x00FF);
+    loraTxBuf[2] = (uint8_t) ((uint16_t) address & 0x00FF);
+    loraTxBuf[3] = 0;
+    loraTxBuf[4] = 0;
+    sxSpiTransmitReceive(radio, loraTxBuf, loraRxBuf, 5);
+    return loraRxBuf[4];
+}
+
+
 
 void WriteRegisterByte(sx1280_custom *radio, uint16_t address, uint8_t data) {
     uint8_t loraTxBuf[4];

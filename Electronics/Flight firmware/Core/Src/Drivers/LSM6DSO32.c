@@ -121,9 +121,9 @@ uint8_t LSM_init(lsm6dso *imu, SPI_HandleTypeDef *spiHandle,
         HAL_Delay(2);
     }
 
-    imu->gyroDPSOffset[0] = calcOffset[0] / calSamples;
-    imu->gyroDPSOffset[1] = calcOffset[0] / calSamples;
-    imu->gyroDPSOffset[2] = calcOffset[0] / calSamples;
+    imu->gyroDPSOffset[0] = 0; //calcOffset[0] / calSamples;
+    imu->gyroDPSOffset[1] = 0; //calcOffset[0] / calSamples;
+    imu->gyroDPSOffset[2] = 0; //0calcOffset[0] / calSamples;
 
 
     return 0;

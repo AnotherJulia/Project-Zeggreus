@@ -43,6 +43,39 @@ void encode_TLM(TLM_decoded *dec, TLM_encoded *enc) {
     }
 }
 
+void encode_Blackbox(TLM_decoded *dec, blackbox_encoded *enc) {
+    enc->packet_state_bits = (dec->packet_type & (1<<0)) | ((0b00011111 & dec->flight_state) << 1) | ((1 & dec->is_playing_music) << 6) | ((1&dec->is_data_logging) <<7);
+
+    enc->pin_states_servo = (dec->pin_states & 0b00111111) | ((dec->servo_state & 0b00000011) << 6);
+
+    enc->systick[0] = 0xff & (dec->systick >> 16);
+    enc->systick[1] = 0xff & (dec->systick >> 8);
+    enc->systick[2] = 0xff & dec->systick;
+
+    enc->vbat = (uint16_t) round(dec->vbat * 5000); // 0.0002 V/lsb
+
+    enc->orientation_quat[0] = (int16_t) round(dec->orientation_quat[0]*32767);
+    enc->orientation_quat[1] = (int16_t) round(dec->orientation_quat[1]*32767);
+    enc->orientation_quat[2] = (int16_t) round(dec->orientation_quat[2]*32767);
+    enc->orientation_quat[3] = (int16_t) round(dec->orientation_quat[3]*32767);
+
+    for (int i = 0; i < 3; i++) {
+        enc->acc[i] = dec->acc[i];
+        enc->gyro[i] = dec->gyro[i];
+    }
+
+    enc->baro = (uint16_t) round(dec->baro - 50000); // 50000 Pa as zero point. Max ISA height: 5.5 km, max pressure: 115536 Pa
+
+    enc->temp = (uint8_t) round(dec->temp * 4);
+
+    enc->altitude = (uint16_t) round((dec->altitude+48) * 16); // 0.0625m/LSB, -48 m as reference and max 2000 m.
+
+    enc->vertical_velocity = (uint8_t) MIN(MAX(round(dec->vertical_velocity + 80),0),255); // 0-255 maps to -80-175 m/s.
+
+    enc->ranging = (uint16_t) round(dec->ranging * 4);
+
+}
+
 void decode_TLM(TLM_encoded *enc, TLM_decoded *dec) {
     dec->packet_type = enc->packet_state_bits & 1;
     dec->flight_state = (enc->packet_state_bits >> 1) & 0b00011111;
@@ -80,6 +113,41 @@ void decode_TLM(TLM_encoded *enc, TLM_decoded *dec) {
     else {
         dec->debug = (uint16_t) enc->debug_ranging;
     }
+}
+
+void decode_Blackbox(blackbox_encoded *enc, TLM_decoded *dec) {
+    dec->packet_type = enc->packet_state_bits & 1;
+    dec->flight_state = (enc->packet_state_bits >> 1) & 0b00011111;
+    dec->is_playing_music = (enc->packet_state_bits >> 6) & 1;
+    dec->is_data_logging = (enc->packet_state_bits >> 7) & 1;
+
+    dec->pin_states = (enc->pin_states_servo & 0b00111111);
+    dec->servo_state = (enc->pin_states_servo >> 6) & 0b00000011;
+
+    dec->systick = (enc->systick[0] << 16) | (enc->systick[1] << 8) | (enc->systick[2]);
+
+    dec->vbat = (float) (enc->vbat)*0.0002;
+
+    dec->orientation_quat[0] = ((float) enc->orientation_quat[0])/32767;
+    dec->orientation_quat[1] = ((float) enc->orientation_quat[1])/32767;
+    dec->orientation_quat[2] = ((float) enc->orientation_quat[2])/32767;
+    dec->orientation_quat[3] = ((float) enc->orientation_quat[3])/32767;
+
+    for (int i = 0; i < 3; i++) {
+        dec->acc[i] = enc->acc[i];
+        dec->gyro[i] = enc->gyro[i];
+    }
+
+    dec->baro = (float) (enc->baro + 50000);
+
+    dec->temp = ((float) enc->temp)/4;
+
+    dec->altitude = ((float) enc->altitude) * 0.0625 - 48;
+
+    dec->vertical_velocity = (float) (enc->vertical_velocity - 80);
+
+    dec->ranging = ((float) enc->ranging) * 0.25;
+
 }
 
 void test_TLM() {

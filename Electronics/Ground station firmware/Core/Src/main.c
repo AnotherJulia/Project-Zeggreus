@@ -229,7 +229,9 @@ void loraTelemetry() {
     char printBuffer[256];
 
     // rx mode
-    SetDioIrqParams(&radio, (1 << 1) | (1 << 6), 1 << 1, 0, 0); //rxdone on gpio1, crcerror on as well
+    SetDioIrqParams(&radio, 1 | (1 << 1) | (1 << 6), 1 | 1 << 1, 0, 0); //rxdone/txdone on gpio1, crcerror on as well
+    HAL_Delay(1);
+    SetTxParams(&radio, 0x1F, 0xE0);
     HAL_Delay(1);
 
     uint8_t rxStartBufferPointer = 0;
@@ -274,6 +276,11 @@ void loraTelemetry() {
     uint8_t is_camera_on;
 
     uint8_t button_pressed = 0;
+
+    uint8_t controlData[4];
+
+    uint8_t last_cam_control_state = 1;
+    uint8_t debounce_helper = 0;
     while (1) {
 
         //SetRx(0x00, 0xffff); // continous rx
@@ -281,7 +288,7 @@ void loraTelemetry() {
         //SetRx(0x02, 200); // 200 ms timeout
         HAL_Delay(1);
         // wait for reception:
-        for (int i = 0; i < 35; i++) { // 35 ms timeout
+        for (int i = 0; i < 70; i++) { // 50 ms timeout
             if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
                 nowtime = HAL_GetTick();
                 delay = nowtime - lasttime  ;
@@ -298,7 +305,7 @@ void loraTelemetry() {
             GetPacketStatusLora(&radio);
             GetIrqStatus(&radio);
 
-            ClrIrqStatus(&radio, (1 << 1) | (1 << 6)); // clear rxdone Irq and crcerror
+            ClrIrqStatus(&radio, 1 | (1 << 1) | (1 << 6)); // clear rxdone/txdone Irq and crcerror
             HAL_Delay(1);
             //GetRxBufferStatus(); // TODO
 
@@ -316,7 +323,7 @@ void loraTelemetry() {
             is_camera_on = (TLM_dec.pin_states & (1 << 3)) >> 3;
 
             snprintf(printBuffer, 256,
-                    "/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%ld,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d*/\r\n",
+                    "/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%ld,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f*/\r\n",
                     TLM_dec.systick, pkt_count, TLM_dec.vbat, TLM_dec.temp,
                     TLM_dec.altitude, TLM_dec.baro / 1000, TLM_dec.temp, delay,
                     TLM_dec.systick, longitude, latitude, TLM_dec.altitude, 0.0,
@@ -327,7 +334,7 @@ void loraTelemetry() {
                     TLM_dec.gyro[1] * gyro_conversion,
                     TLM_dec.gyro[2] * gyro_conversion, radio.rssi,
                     radio.crcError, is_ant1 ? 1 : 2, is_soft_enabled, is_armed,
-                    is_breakwire_connected, is_camera_on,TLM_dec.flight_state);
+                    is_breakwire_connected, is_camera_on,TLM_dec.flight_state), TLM_dec.orientation_quat[0],TLM_dec.orientation_quat[1],TLM_dec.orientation_quat[2],TLM_dec.orientation_quat[3];
 
             //snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
             //snprintf(printBuffer, 128,
@@ -350,6 +357,58 @@ void loraTelemetry() {
         }
         else {
             button_pressed = 0;
+        }
+
+        // two way telemetry
+        if (last_cam_control_state != HAL_GPIO_ReadPin(DEBUG_GPIO_Port, DEBUG_Pin)) {
+            last_cam_control_state = HAL_GPIO_ReadPin(DEBUG_GPIO_Port, DEBUG_Pin);
+            debounce_helper = 0;
+            for (int i = 0; i < 5; i++) {
+                if (last_cam_control_state != HAL_GPIO_ReadPin(DEBUG_GPIO_Port, DEBUG_Pin)) {
+                    debounce_helper = 1;
+                    last_cam_control_state = !last_cam_control_state; // back to previous state
+                    break;
+                }
+                HAL_Delay(1);
+            }
+            if (debounce_helper == 0) {
+                if (last_cam_control_state) {
+                    // secret enable camera code
+                    controlData[0] = 123;
+                    controlData[1] = 100;
+                    controlData[2] = 123;
+                    controlData[3] = 100;
+                }
+                else {
+                    // super secret disable camera code
+                    controlData[0] = 12;
+                    controlData[1] = 34;
+                    controlData[2] = 56;
+                    controlData[3] = 78;
+                }
+
+                SetPacketParamsLora(&radio, 12, 0x80, 4, 0x20, 0x40); // 4 byte payload
+                HAL_Delay(1);
+                WriteBuffer(&radio, 0, controlData, sizeof(controlData));
+
+                for (int packetnum = 0; packetnum < 200; packetnum++) { // blast out 50 packets, hopefully one of them is received.
+
+                    for (int i = 0; i < 100; i++) {
+                        if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                            break;
+                        }
+                        HAL_Delay(1);
+                    }
+
+                    ClrIrqStatus(&radio, 1 | (1 << 1));
+                    HAL_Delay(1);
+                    SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
+                }
+
+
+                HAL_Delay(1);
+                SetPacketParamsLora(&radio, 12, 0x80, 32, 0x20, 0x40);
+            }
         }
 
         HAL_Delay(1);

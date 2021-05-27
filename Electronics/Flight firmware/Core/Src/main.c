@@ -36,6 +36,7 @@
 #include "Quaternion.h"
 #include "orientation.h"
 #include "telemetry.h"
+#include "w25qxx.h"
 
 /* USER CODE END Includes */
 
@@ -68,6 +69,17 @@ uint32_t last_logged_deploy_time = 0;
 
 uint8_t is_camera_recording = 0;
 uint8_t is_camera_on = 0;
+
+uint8_t is_data_logging = 0;
+
+uint8_t ranging_enabled = 0;
+uint8_t is_ranging_transponder = 0;
+
+char blackbox_printBuffer[256];
+
+flashblock chunk_of_flash;
+
+uint8_t is_tx = 0;
 
 // Music (Rick Astley)
 
@@ -138,9 +150,9 @@ static uint16_t ksp_delays[] = {1000, 1000, 1000, 333, 333, 333, 1000, 1000, 100
 
 // Flight settings:
 #define MIN_DEPLOY_TIME 10000 // 10 seconds
-#define MAX_DEPLOY_TIME 14000 // 14 seconds
+#define MAX_DEPLOY_TIME 15000 // 15 seconds
 
-#define BATTERY_EMPTY_LIMIT 5 //7.2 // volts
+#define BATTERY_EMPTY_LIMIT 7.2 //7.2 // volts
 #define SERVO_CLOSED_POSITION 0 // degrees
 #define SERVO_DEPLOY_POSITION 180 // degrees
 
@@ -176,6 +188,7 @@ osThreadId musicTaskHandle;
 osThreadId stateMachineTasHandle;
 osThreadId telemTaskHandle;
 osThreadId baroTaskHandle;
+osThreadId blackboxTaskHandle;
 osMessageQId BuzzerQueueHandle;
 /* USER CODE BEGIN PV */
 
@@ -206,6 +219,7 @@ void StartMusicTask(void const * argument);
 void startStateMachine(void const * argument);
 void StartTelemTask(void const * argument);
 void StartBaroTask(void const * argument);
+void StartBlackboxTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -273,6 +287,17 @@ void pulse_recording_button() {
     HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_RESET);
 }
 
+void double_pulse_recording() {
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_SET);
+    osDelay(300);
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_RESET);
+    osDelay(1000);
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_SET);
+    osDelay(300);
+    HAL_GPIO_WritePin(VTX_BTN1_GPIO_Port, VTX_BTN1_Pin, GPIO_PIN_RESET);
+
+}
+
 void enable_recording() {
     if (!is_camera_recording) {
         pulse_recording_button();
@@ -318,6 +343,62 @@ void set_status_led(uint8_t status_state) {
 uint8_t is_vote_asserted() {
     // Todo
     return 0;
+}
+
+void rangingTransponder() {
+    sx1280_custom radio;
+
+        sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+        sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
+        HAL_Delay(1);
+        SetStandbyRC(&radio);
+        HAL_Delay(1);
+        setPacketRanging(&radio);
+        HAL_Delay(1);
+        SetModulationParams(&radio, 0x80, 0x18, 0x01);
+        HAL_Delay(1);
+        SetPacketParamsLora(&radio, 12, 0x80, 0, 0x20, 0x40);
+        HAL_Delay(1);
+        SetRfFrequency(&radio);
+        HAL_Delay(1);
+        SetTxParams(&radio, 0x1F, 0xE0); // Power = 13 dBm (0x1F), Pout = -18 + power (dBm) ramptime = 20 us.
+        HAL_Delay(5);
+        sxStandardRangingSlave(&radio);
+        HAL_Delay(3);
+        uint16_t mask = 1 << 7 | 1<<11 | 1<<14 | 1<<8;
+        SetDioIrqParams(&radio,mask ,mask, 0, 0);
+        HAL_Delay(1);
+
+        changeLed(0, 0, 50);
+
+        char printBuffer[128];
+
+
+        HAL_Delay(1);
+        for (;;) {
+            ClrIrqStatus(&radio, mask);
+            HAL_Delay(1);
+
+            SetRx(&radio, 0x02, 1000);
+            HAL_Delay(1);
+            for (int i = 0; i < 1000; i++) {
+                if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                    break;
+                }
+                HAL_Delay(1);
+            }
+            GetIrqStatus(&radio);
+            sprintf(printBuffer, "%d\r\n",radio.IrqStatus);
+
+            CDC_Transmit_FS((uint8_t*) printBuffer,
+                    MIN(strlen(printBuffer), 128));
+
+            changeLed(200, 200, 200);
+            HAL_Delay(10);
+            changeLed(0, 0, 50);
+
+            HAL_Delay(1);
+        }
 }
 
 void loraTesting(uint8_t isTx) {
@@ -519,6 +600,143 @@ void loraOrientation(uint8_t isTx) {
 
     }
 }
+
+void loraTelemetry() {
+    TLM_decoded TLM_dec;
+    TLM_encoded TLM_enc;
+
+    sx1280_custom radio;
+
+    sxInit(&radio, &hspi3, LORA_NSS_GPIO_Port, LORA_NSS_Pin);
+    sxSetDio1Pin(&radio, LORA_DIO1_GPIO_Port, LORA_DIO1_Pin);
+
+    char printBuffer[256];
+
+    // rx mode
+    SetDioIrqParams(&radio, 1 | (1 << 1) | (1 << 6), 1 | 1 << 1, 0, 0); //rxdone/txdone on gpio1, crcerror on as well
+    HAL_Delay(1);
+    SetTxParams(&radio, 0x1F, 0xE0);
+    HAL_Delay(1);
+
+    uint8_t rxStartBufferPointer = 0;
+    /*
+    TLM_dec.packet_type = 1;
+    TLM_dec.flight_state = 23;
+    TLM_dec.is_playing_music = 0;
+    TLM_dec.is_data_logging = 0;
+    TLM_dec.pin_states = 0b00011011;
+    TLM_dec.servo_state = 3;
+    TLM_dec.vbat = 7.283;
+    TLM_dec.systick = 1232432;
+    TLM_dec.orientation_quat[0] = 0.143123;
+    TLM_dec.acc[2] = -12343;
+    TLM_dec.gyro[2] = -21;
+    TLM_dec.baro = 90001.623;
+    TLM_dec.temp = 63.4;
+    TLM_dec.vertical_velocity = 180;
+    TLM_dec.altitude = 1321;
+    TLM_dec.debug = 1337;
+    TLM_dec.ranging = 15212;
+
+     */
+
+    float latitude = 52.394821;
+    float longitude = 5.922696;
+
+    float acc_conversion = 0.0095712904;
+    float gyro_conversion = 0.00122173047; //0.070;
+
+    uint32_t pkt_count = 0;
+
+    //changeLed(0, 100, 0);
+    uint8_t data[4];
+    uint32_t lasttime = HAL_GetTick();
+    uint32_t nowtime = HAL_GetTick();
+    uint32_t delay = 0;
+
+    uint8_t is_soft_enabled;
+    uint8_t is_armed ;
+    uint8_t is_breakwire_connected;
+    uint8_t is_camera_on;
+
+    uint8_t button_pressed = 0;
+
+    uint8_t controlData[4];
+
+    uint8_t last_cam_control_state = 1;
+    uint8_t debounce_helper = 0;
+    while (1) {
+
+        //SetRx(0x00, 0xffff); // continous rx
+        SetRx(&radio, 0x00, 0); // No timeout
+        //SetRx(0x02, 200); // 200 ms timeout
+        HAL_Delay(1);
+        // wait for reception:
+        for (int i = 0; i < 70; i++) { // 50 ms timeout
+            if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                nowtime = HAL_GetTick();
+                delay = nowtime - lasttime  ;
+                lasttime = nowtime;
+                break;
+            }
+            HAL_Delay(1);
+        }
+
+        if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+
+            pkt_count++;
+
+            GetPacketStatusLora(&radio);
+            GetIrqStatus(&radio);
+
+            ClrIrqStatus(&radio, 1 | (1 << 1) | (1 << 6)); // clear rxdone/txdone Irq and crcerror
+            HAL_Delay(1);
+            //GetRxBufferStatus(); // TODO
+
+            ReadBuffer(&radio, rxStartBufferPointer, sizeof(TLM_enc),
+                    (uint8_t*) &TLM_enc);
+            //ReadBuffer(&radio, rxStartBufferPointer, sizeof(data), (uint8_t*) data);
+            decode_TLM(&TLM_enc, &TLM_dec);
+            //snprintf(printBuffer, 128, "%d,%d,%d,%d,%d,%d,%f,%d,%f,%d,%d,%f,%f,%f,%f,%f\r\n", TLM_dec.packet_type,TLM_dec.flight_state,TLM_dec.is_playing_music,TLM_dec.is_data_logging,
+            //        TLM_dec.pin_states,TLM_dec.servo_state, TLM_dec.vbat, TLM_dec.systick, TLM_dec.orientation_quat[0], TLM_dec.acc[2],TLM_dec.gyro[2],TLM_dec.baro, TLM_dec.temp, TLM_dec.vertical_velocity,
+            //        TLM_dec.altitude, TLM_dec.ranging);
+
+            is_soft_enabled = (TLM_dec.pin_states & 1);
+            is_armed = (TLM_dec.pin_states & (1 << 1)) >> 1;
+            is_breakwire_connected = (TLM_dec.pin_states & (1 << 2)) >> 2;
+            is_camera_on = (TLM_dec.pin_states & (1 << 3)) >> 3;
+
+            snprintf(printBuffer, 256,
+                    "/*Project Zeggreus,%ld,%ld,%f,%f,%f,%f,%f,%ld,%ld,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f*/\r\n",
+                    TLM_dec.systick, pkt_count, TLM_dec.vbat, TLM_dec.temp,
+                    TLM_dec.altitude, TLM_dec.baro / 1000, TLM_dec.temp, delay,
+                    TLM_dec.systick, longitude, latitude, TLM_dec.altitude, 0.0,
+                    TLM_dec.acc[0] * acc_conversion,
+                    TLM_dec.acc[1] * acc_conversion,
+                    TLM_dec.acc[2] * acc_conversion,
+                    TLM_dec.gyro[0] * gyro_conversion,
+                    TLM_dec.gyro[1] * gyro_conversion,
+                    TLM_dec.gyro[2] * gyro_conversion, radio.rssi,
+                    radio.crcError, 1, is_soft_enabled, is_armed,
+                    is_breakwire_connected, is_camera_on,TLM_dec.flight_state), TLM_dec.orientation_quat[0],TLM_dec.orientation_quat[1],TLM_dec.orientation_quat[2],TLM_dec.orientation_quat[3];
+
+            //snprintf(printBuffer, 128, "Quaternion:%f, %f, %f, %f\r\n", TLM_dec.orientation_quat[0], TLM_dec.orientation_quat[1], TLM_dec.orientation_quat[2], TLM_dec.orientation_quat[3]);
+            //snprintf(printBuffer, 128,
+            //       "Quaternion: %d, %d, %d, %d, RSSI: %f, SNR: %f\r\n",
+            //       data[0], data[1], data[2], data[3], radio.rssi, radio.snr);
+            CDC_Transmit_FS((uint8_t*) printBuffer, strlen(printBuffer));
+
+        } else {
+        }
+
+
+
+        HAL_Delay(1);
+
+    }
+
+}
+
 
 void servoToggleTest() {
     while (1) {
@@ -790,6 +1008,9 @@ int main(void)
 
     HAL_TIM_Base_Start(&htim6);
 
+    /* init code for USB_DEVICE */
+    MX_USB_DEVICE_Init();
+
     startupMusic();
     //while (1) {rick();}
 
@@ -802,13 +1023,70 @@ int main(void)
     HAL_Delay(500);
 
     //BWtest();
-    uint8_t is_tx = 1;
+
     //loraTesting(is_tx);
     // setting to go into ground station mode
     if (!is_tx) {
-        loraOrientation(is_tx);
+        loraTelemetry();
+    }
+    if (is_ranging_transponder) {
+        rangingTransponder();
     }
     //servoToggleTest();
+    if (!HAL_GPIO_ReadPin(EXPORT_BLACKBOX_GPIO_Port, EXPORT_BLACKBOX_Pin)) {
+
+        W25qxx_Initnon();
+        changeLed(200, 200, 200);
+        playtone(1000, 1000, 50);
+        HAL_Delay(10000);
+
+
+        TLM_decoded flash_dec;
+        uint32_t counter = 0;
+
+        uint8_t testblock[100];
+        testblock[0] = 110;
+        testblock[1] = 123;
+
+        // wait 10 sec.
+        while (counter < 65536) {
+            //W25qxx_WritePage(testblock, counter, 0, 100);
+            W25qxx_ReadPageNon((uint8_t*) &chunk_of_flash, counter, 0, 256);
+            playtone(1000, 8, 50);
+            //uint32_t uid = W25qxx_ReadID();
+            HAL_Delay(1);
+
+
+            for (int j = 0; j < 7; j++) {
+                decode_Blackbox(&chunk_of_flash.packets[j], &flash_dec);
+                sprintf(blackbox_printBuffer,
+                        "%d,%d,%d,%d,%ld,%f,%f,%f,%f,%f,%ld,%ld,%ld,%ld,%ld,%ld,%f,%f,%f,%f\r\n",
+                        chunk_of_flash.blockinfo[0], flash_dec.packet_type, flash_dec.flight_state,
+                        flash_dec.pin_states, flash_dec.systick,
+                        flash_dec.vbat, flash_dec.orientation_quat[0],
+                        flash_dec.orientation_quat[1],
+                        flash_dec.orientation_quat[2],
+                        flash_dec.orientation_quat[3], flash_dec.acc[0],
+                        flash_dec.acc[1], flash_dec.acc[2],
+                        flash_dec.gyro[0], flash_dec.gyro[1],
+                        flash_dec.gyro[2], flash_dec.baro, flash_dec.temp,
+                        flash_dec.altitude, flash_dec.vertical_velocity);
+                //sprintf(blackbox_printBuffer,"%ld\r\n",uid);
+
+                CDC_Transmit_FS((uint8_t*) blackbox_printBuffer,
+                        MIN(strlen(blackbox_printBuffer), 256));
+                HAL_Delay(15);
+            }
+
+
+            counter++;
+            HAL_Delay(10);
+
+       }
+
+       changeLed(0, 0, 200);
+
+    }
 
     // LSM6dso setup
     orientation_init(&ori);
@@ -881,6 +1159,10 @@ int main(void)
   /* definition and creation of baroTask */
   osThreadDef(baroTask, StartBaroTask, osPriorityNormal, 0, 128);
   baroTaskHandle = osThreadCreate(osThread(baroTask), NULL);
+
+  /* definition and creation of blackboxTask */
+  osThreadDef(blackboxTask, StartBlackboxTask, osPriorityBelowNormal, 0, 256);
+  blackboxTaskHandle = osThreadCreate(osThread(blackboxTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
@@ -1073,7 +1355,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1368,7 +1650,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, CAM_POWER_Pin|LORA_NSS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, CAM_POWER_Pin|FLASH_NSS_Pin|LORA_NSS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, SD_NSS_Pin|VTX_BTN1_Pin, GPIO_PIN_RESET);
@@ -1385,14 +1667,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(IMU_INT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RBF_Pin */
-  GPIO_InitStruct.Pin = RBF_Pin;
+  /*Configure GPIO pins : RBF_Pin EXPORT_BLACKBOX_Pin */
+  GPIO_InitStruct.Pin = RBF_Pin|EXPORT_BLACKBOX_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(RBF_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CAM_POWER_Pin LORA_NSS_Pin */
-  GPIO_InitStruct.Pin = CAM_POWER_Pin|LORA_NSS_Pin;
+  /*Configure GPIO pins : CAM_POWER_Pin FLASH_NSS_Pin LORA_NSS_Pin */
+  GPIO_InitStruct.Pin = CAM_POWER_Pin|FLASH_NSS_Pin|LORA_NSS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1730,7 +2012,7 @@ void StartMusicTask(void const * argument)
   /* USER CODE BEGIN StartMusicTask */
     /* Infinite loop */
 
-    uint16_t vol = 0; // 13
+    uint16_t vol = 13; // 13
     uint16_t beatlength = 50; // determines tempo
     float beatseparationconstant = 0.3;
 
@@ -1832,6 +2114,7 @@ void startStateMachine(void const * argument)
     servo_init(&deployServo, &htim2, &htim2.Instance->CCR4);
     servo_disable(&deployServo);
     servo_setting = 0;
+    uint8_t cam_has_toggled = 0;
 
     /* Infinite loop */
     for (;;) {
@@ -1840,10 +2123,18 @@ void startStateMachine(void const * argument)
         timeSinceLaunch = currentTime - launchTime;
 
         if (is_soft_enabled()) {
+
+            float vbat = get_battery_voltage();
+
+            if (vbat < 7.2) {
+                disable_camera();
+            }
+
             switch (flight_state) {
             case FLIGHT_ERROR:
                 // be annoying TODO
                 buzzer_beep(BEEP_LONG);
+                is_data_logging = 0;
 
                 // exit the state once we're no longer armed,
                 // if battery voltage is in good state
@@ -1863,11 +2154,12 @@ void startStateMachine(void const * argument)
                 // this state is the entry state, it performs startup checking of some peripherals
                 changeLed(100, 0, 0);
                 apply_complementary = 1;
+                is_data_logging = 0;
                 // close the servo if necessary
                 servo_writeangle(&deployServo, SERVO_CLOSED_POSITION);
                 servo_setting = 1;
 
-                float vbat = get_battery_voltage();
+
 
                 // enable power to camera/video transmitter
                 if (vbat > 7.4) {
@@ -1891,6 +2183,7 @@ void startStateMachine(void const * argument)
 
             case IDLE:
                 changeLed(0, 100, 0);
+                is_data_logging = 0;
                 apply_complementary = 1;
                 if (is_armed()) {
                     flight_state = FLIGHT_ERROR;
@@ -1909,6 +2202,7 @@ void startStateMachine(void const * argument)
             case PREPARATION:
                 changeLed(0, 0, 100);
                 apply_complementary = 1;
+                is_data_logging = 0;
                 if (is_breakwire_broken_debounce()) {
                     buzzer_beep(BEEP_LONG);
                     set_status_led(1);
@@ -1926,6 +2220,7 @@ void startStateMachine(void const * argument)
                 break;
 
             case ARMED:
+                is_data_logging = 1;
                 changeLed(100, 100, 0);
                 apply_complementary = 1;
                 if (!is_armed()) {
@@ -1942,11 +2237,13 @@ void startStateMachine(void const * argument)
 
                     //set_launch_asserted(ON);
                     flight_state = LAUNCHED;
+                    cam_has_toggled = 0;
                     break;
                 }
                 break;
 
             case LAUNCHED:
+                is_data_logging = 1;
                 changeLed(100, 100, 100);
                 apply_complementary = 0;
                 buzzer_beep(BEEP_SHORT);
@@ -1972,22 +2269,33 @@ void startStateMachine(void const * argument)
                 break;
 
             case DEPLOYED:
+                is_data_logging = 1;
                 changeLed(100, 0, 100);
                 buzzer_beep(BEEP_LONG);
 
-                if (timeSinceLaunch > 240000) {
+                if (!cam_has_toggled && baro.altitude < 100) {
+                    pulse_recording_button();
+                    osDelay(400);
+                    pulse_recording_button();
+                    cam_has_toggled = 1;
+                }
+
+                if (timeSinceLaunch > 240000) { // 4 min after launch
                     flight_state = LANDED;
                 }
 
                 break;
 
             case LANDED:
+                is_data_logging = 0;
+                buzzer_beep(BEEP_LONG);
                 disable_camera();
                 break;
             }
         } else {
             // when "soft on/off switch" is off. Play some music and disable everything
             apply_complementary = 1;
+            is_data_logging = 0;
             changeLed(100, 0, 0);
             buzzer_setting = KSP_MAIN;
             flight_state = SYSTEMS_CHECK;
@@ -2004,7 +2312,6 @@ void startStateMachine(void const * argument)
 /* USER CODE BEGIN Header_StartTelemTask */
 /**
  * @brief Function implementing the telemTask thread.
- * @param argument: Not used
  * @retval None
  */
 /* USER CODE END Header_StartTelemTask */
@@ -2051,9 +2358,13 @@ void StartTelemTask(void const * argument)
     WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
     osDelay(1);
 
-    SetDioIrqParams(&radio, 1, 1, 0, 0); // txdone on gpio1
+    SetDioIrqParams(&radio, 1 | (1 << 1) | (1<<9), 1 | (1 << 1) | (1<<9), 0, 0); // txdone and rxdone and rangingresultvalid on gpio1
+    osDelay(1);
+    sxStandardRangingMaster(&radio);
 
     osDelay(3);
+
+    uint8_t rxData[4];
 
     uint32_t lasttime = HAL_GetTick();
     uint32_t nowtime = HAL_GetTick();
@@ -2073,42 +2384,128 @@ void StartTelemTask(void const * argument)
             if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
                 break;
             }
-            osDelay(5);
+            osDelay(3);
         }
 
-        TLM_dec.vbat = get_battery_voltage();
-        TLM_dec.systick = osKernelSysTick();
-        TLM_dec.acc[0] = imu.rawAcc[0];
-        TLM_dec.acc[1] = imu.rawAcc[1];
-        TLM_dec.acc[2] = imu.rawAcc[2];
-        TLM_dec.gyro[0] = imu.rawGyro[0];
-        TLM_dec.gyro[1] = imu.rawGyro[1];
-        TLM_dec.gyro[2] = imu.rawGyro[2];
-        TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
-        TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
-        TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
-        TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
-        // SPL06_Read(&baro);
-        TLM_dec.baro = baro.pressure_Pa;
-        TLM_dec.temp = baro.temperature_C;
-        TLM_dec.altitude = baro.altitude;
-        TLM_dec.flight_state = flight_state;
-        TLM_dec.pin_states = (is_soft_enabled()) | (is_armed() << 1) | (is_breakwire_connected() << 2) | (is_camera_on << 3);
-        TLM_dec.servo_state = servo_setting;
+        if (counter % 30 == 0) {
+            // change to receive mode every second for two way radio
+            SetPacketParamsLora(&radio, 12, 0x80, 4, 0x20, 0x40); // 4 byte payload
+            osDelay(1);
+            ClrIrqStatus(&radio, 1 | (1 << 1) | (1<<9));
+            osDelay(1);
+            SetRx(&radio, 0x02, 25);
 
-        //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
-        //        data[1], data[2], data[3]);
-        //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
-        //CDC_Transmit_FS((uint8_t*) printBuffer,
-        //        MIN(strlen(printBuffer), 128));
+            for (int i = 0; i < 25; i++) { // 25 ms timeout
+                if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                    break;
+                }
+                HAL_Delay(1);
+            }
 
-        encode_TLM(&TLM_dec, &TLM_enc);
-        WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
-        //WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
-        osDelay(1);
-        ClrIrqStatus(&radio, 1); // clear txdone irq
-        osDelay(1);
-        SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
+            if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                // rxdone
+                ReadBuffer(&radio, 0, sizeof(rxData), rxData);
+
+                if (rxData[0] == 123 && rxData[1] == 100 && rxData[2] == 123 && rxData[3] == 100) {
+                    // enable camera
+                    if (!is_camera_recording) {
+                        restart_camera_with_recording();
+                    }
+                }
+                else if (rxData[0] == 12 && rxData[1] == 34 && rxData[2] == 56 && rxData[3] == 78) {
+                    // disable camera
+                    disable_camera();
+
+                }
+            }
+            osDelay(1);
+
+            SetPacketParamsLora(&radio, 12, 0x80, 32, 0x20, 0x40);
+
+        }
+        else if ((counter % 60 == 12 || counter % 60 == 24) && ranging_enabled) {
+            // twice per second, try ranging
+            ClrIrqStatus(&radio, 1 | (1 << 1) | (1<<9));
+            osDelay(1);
+            SetStandbyRC(&radio);
+            osDelay(1);
+            setPacketRanging(&radio);
+            osDelay(1);
+            SetModulationParams(&radio, 0x80, 0x18, 0x01);
+            osDelay(1);
+            SetPacketParamsLora(&radio, 12, 0x80, 0, 0x20, 0x40);
+            osDelay(1);
+            sxStandardRangingMaster(&radio);
+            osDelay(1);
+            SetRfFrequency(&radio);
+            osDelay(1);
+            SetTx(&radio, 0x02, 25); // time-out of 1ms * 30 = 30ms
+            osDelay(1);
+
+            for (int i = 0; i < 30; i++) { // 30 ms timeout
+                if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin)) {
+                    break;
+                }
+                HAL_Delay(1);
+            }
+
+            if (HAL_GPIO_ReadPin(LORA_DIO1_GPIO_Port, LORA_DIO1_Pin) && 0) {
+                SetStandbyXOSC(&radio);
+                osDelay(1);
+                uint8_t temp = (ReadRegisterByte(&radio, 0x0924) & 0xCF)
+                        | (0b00000001 << 4); // Average RSSI filtered result
+                // TODO
+                SetStandbyRC(&radio);
+                osDelay(1);
+            }
+
+            osDelay(1);
+            SetRfFrequency2(&radio);
+            osDelay(1);
+            setPacketLora(&radio);
+            osDelay(1);
+            SetPacketParamsLora(&radio, 12, 0x80, 32, 0x20, 0x40);
+        } else {
+            TLM_dec.vbat = get_battery_voltage();
+            TLM_dec.systick = osKernelSysTick();
+            TLM_dec.is_data_logging = is_data_logging;
+            TLM_dec.acc[0] = imu.rawAcc[0];
+            TLM_dec.acc[1] = imu.rawAcc[1];
+            TLM_dec.acc[2] = imu.rawAcc[2];
+            TLM_dec.gyro[0] = imu.rawGyro[0];
+            TLM_dec.gyro[1] = imu.rawGyro[1];
+            TLM_dec.gyro[2] = imu.rawGyro[2];
+            TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
+            TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
+            TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
+            TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
+            // SPL06_Read(&baro);
+            TLM_dec.baro = baro.pressure_Pa;
+            TLM_dec.temp = baro.temperature_C;
+            TLM_dec.altitude = baro.altitude;
+            TLM_dec.vertical_velocity = baro.vertical_speed;
+            TLM_dec.flight_state = flight_state;
+            TLM_dec.pin_states = (is_soft_enabled()) | (is_armed() << 1)
+                    | (is_breakwire_connected() << 2) | (is_camera_on << 3);
+            TLM_dec.servo_state = servo_setting;
+
+            //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n", data[0],
+            //        data[1], data[2], data[3]);
+            //sprintf(printBuffer, "Quaternion: %f, %f, %f, %f\r\n",data[0],ori.orientationQuat.v[0],ori.orientationQuat.v[1],ori.orientationQuat.v[2]);
+            //CDC_Transmit_FS((uint8_t*) printBuffer,
+            //        MIN(strlen(printBuffer), 128));
+
+            encode_TLM(&TLM_dec, &TLM_enc);
+            WriteBuffer(&radio, 0, (uint8_t*) &TLM_enc, sizeof(TLM_enc));
+            //WriteBuffer(&radio, 0, (uint8_t*) data, sizeof(data));
+            osDelay(1);
+            ClrIrqStatus(&radio, 1 | (1 << 1) | (1<<9)); // clear txdone/rxdone irq
+            osDelay(1);
+            SetRfFrequency2(&radio);
+            osDelay(1);
+            SetTx(&radio, 0x02, 50); // time-out of 1ms * 50 = 50ms
+        }
+
 
         osDelay(10);
 
@@ -2128,6 +2525,9 @@ void StartBaroTask(void const * argument)
   /* USER CODE BEGIN StartBaroTask */
   /* Infinite loop */
     uint32_t counter = 0;
+    float prevh = 0;
+    uint32_t last_baro_time = osKernelSysTick();
+    uint32_t new_baro_time = osKernelSysTick();
     for (;;) {
         float dt = ((float) __HAL_TIM_GET_COUNTER(&htim6))/1000000;
         __HAL_TIM_SET_COUNTER(&htim6,0);
@@ -2135,11 +2535,97 @@ void StartBaroTask(void const * argument)
         orientation_setAcc(&ori, imu.accMPS);
         orientation_update(&ori, dt, apply_complementary);
         if (counter % 50 == 0) { // 20 Hz
+            prevh = baro.altitude;
             SPL06_Read(&baro);
+            new_baro_time = osKernelSysTick();
+            baro.vertical_speed = (baro.altitude - prevh) / (new_baro_time - last_baro_time);
+            last_baro_time = new_baro_time;
         }
         osDelay(1);
     }
   /* USER CODE END StartBaroTask */
+}
+
+/* USER CODE BEGIN Header_StartBlackboxTask */
+/**
+* @brief Function implementing the blackboxTask thread.
+* @param argument: Not used
+* @retval None
+ */
+/* USER CODE END Header_StartBlackboxTask */
+void StartBlackboxTask(void const * argument)
+{
+  /* USER CODE BEGIN StartBlackboxTask */
+    osDelay(1);
+    W25qxx_Init();
+
+
+    osDelay(1); // wait 10 sec.
+    TLM_decoded TLM_dec;
+
+
+    uint16_t current_page = 0;
+
+    while (1) {
+        while (!is_data_logging) {
+            osDelay(10);
+        }
+        osDelay(5000);
+        if (is_data_logging) {
+            break;
+        }
+    }
+    playtoneRTOS(1000, 100, 20);
+    W25qxx_EraseChip(); // takes some time
+    playtoneRTOS(1500, 100, 20);
+
+
+    chunk_of_flash.blockinfo[0] = 123;
+    chunk_of_flash.blockinfo[1] = 123;
+    /* Infinite loop */
+    for (;;) {
+
+        if (is_data_logging) {
+
+            for (int i = 0; i < 7; i++) {
+                TLM_dec.vbat = get_battery_voltage();
+                TLM_dec.systick = osKernelSysTick();
+                TLM_dec.is_data_logging = is_data_logging;
+                TLM_dec.acc[0] = imu.rawAcc[0];
+                TLM_dec.acc[1] = imu.rawAcc[1];
+                TLM_dec.acc[2] = imu.rawAcc[2];
+                TLM_dec.gyro[0] = imu.rawGyro[0];
+                TLM_dec.gyro[1] = imu.rawGyro[1];
+                TLM_dec.gyro[2] = imu.rawGyro[2];
+                TLM_dec.orientation_quat[0] = ori.orientationQuat.w;
+                TLM_dec.orientation_quat[1] = ori.orientationQuat.v[0];
+                TLM_dec.orientation_quat[2] = ori.orientationQuat.v[1];
+                TLM_dec.orientation_quat[3] = ori.orientationQuat.v[2];
+                // SPL06_Read(&baro);
+                TLM_dec.baro = baro.pressure_Pa;
+                TLM_dec.temp = baro.temperature_C;
+                TLM_dec.altitude = baro.altitude;
+                TLM_dec.vertical_velocity = baro.vertical_speed;
+                TLM_dec.flight_state = flight_state;
+                TLM_dec.pin_states = (is_soft_enabled()) | (is_armed() << 1)
+                        | (is_breakwire_connected() << 2) | (is_camera_on << 3);
+                TLM_dec.servo_state = servo_setting;
+
+                encode_Blackbox(&TLM_dec, &chunk_of_flash.packets[i]);
+                osDelay(5); // approx 200 Hz logging rate.
+            }
+
+
+            W25qxx_WritePage((uint8_t*) &chunk_of_flash, current_page, 0, 255);
+            current_page = (current_page + 1) % 65536;
+
+        }
+        else {
+            osDelay(10);
+        }
+        osDelay(1);
+    }
+  /* USER CODE END StartBlackboxTask */
 }
 
  /**

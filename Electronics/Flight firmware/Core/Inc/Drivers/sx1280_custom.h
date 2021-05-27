@@ -17,9 +17,13 @@ typedef struct {
 
     uint8_t rssiSync;
     int8_t rawSnr;
+    uint16_t IrqStatus;
+    uint8_t crcError;
 
     float rssi;
     float snr;
+
+    float rangingResult;
 
 } sx1280_custom;
 
@@ -30,13 +34,15 @@ void sxSpiTransmit(sx1280_custom *radio, uint8_t *txBuf, uint8_t size);
 void sxSpiTransmitReceive(sx1280_custom *radio, uint8_t *txBuf, uint8_t *rxBuf, uint8_t size);
 
 void SetStandbyRC(sx1280_custom *radio);
+void SetStandbyXOSC(sx1280_custom *radio);
 void SetTxContinuousWave(sx1280_custom *radio);
 void SetRfFrequency(sx1280_custom *radio);
 void SetRfFrequency2(sx1280_custom *radio);
 void setPacketLora(sx1280_custom *radio);
-
 void setPacketRanging(sx1280_custom *radio);
-
+void setRangingRole(sx1280_custom *radio, uint8_t is_master);
+void sxStandardRangingMaster(sx1280_custom *radio);
+void sxStandardRangingSlave(sx1280_custom *radio);
 void SetTxParams(sx1280_custom *radio, uint8_t power, uint8_t rampTime);
 void SetBufferBaseAddresses(sx1280_custom *radio, uint8_t txBaseAddress, uint8_t rxBaseAddress);
 void SetModulationParams(sx1280_custom *radio, uint8_t modParam1, uint8_t modParam2,
@@ -49,6 +55,7 @@ void SetDioIrqParams(sx1280_custom *radio, uint16_t irqMask, uint16_t dio1Mask, 
         uint16_t dio3Mask);
 
 void ClrIrqStatus(sx1280_custom *radio, uint16_t irqMask);
+void GetIrqStatus(sx1280_custom *radio);
 
 void SetTx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount);
 void SetRx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount);
@@ -56,7 +63,6 @@ void SetRx(sx1280_custom *radio, uint8_t periodBase, uint16_t periodBaseCount);
 void GetPacketStatusLora(sx1280_custom *radio);
 
 void GetRxBufferStatus(sx1280_custom *radio);
-
+uint8_t ReadRegisterByte(sx1280_custom *radio, uint16_t address);
 void WriteRegisterByte(sx1280_custom *radio, uint16_t address, uint8_t data);
-void WriteRegisterBytes(sx1280_custom *radio, uint16_t address, uint8_t *data, uint8_t size);
 void sxSetDio1Pin(sx1280_custom *radio, GPIO_TypeDef *Dio1PinBank, uint16_t Dio1Pin);

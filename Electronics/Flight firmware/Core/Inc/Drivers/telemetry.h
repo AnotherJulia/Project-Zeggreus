@@ -16,6 +16,28 @@ typedef struct __attribute__((packed)) {
     uint8_t packet_state_bits; // <[]>
     uint8_t pin_states_servo;
     uint8_t systick[3]; // equivalent to 24 bit unsigned integer
+    uint16_t vbat;
+    int16_t orientation_quat[4]; // [w,x,y,z]
+    int16_t acc[3];
+    int16_t gyro[3];
+    uint16_t baro;
+    uint8_t temp; // temperature in celsius
+    uint16_t altitude;
+    uint8_t vertical_velocity;
+    uint16_t ranging;
+    uint8_t checksum;
+} blackbox_encoded;
+
+typedef struct __attribute__((packed)) {
+    // add up to 256 bytes (one page)
+    uint8_t blockinfo[3];
+    blackbox_encoded packets[7]; // 64 bytes each
+} flashblock;
+
+typedef struct __attribute__((packed)) {
+    uint8_t packet_state_bits; // <[]>
+    uint8_t pin_states_servo;
+    uint8_t systick[3]; // equivalent to 24 bit unsigned integer
     uint8_t vbat_MSB;
     uint8_t padding_vbat_LSB;
     int8_t orientation_quat[4]; // [w,x,y,z]
@@ -51,5 +73,7 @@ typedef struct {
 
 void encode_TLM(TLM_decoded *dec, TLM_encoded *enc);
 void decode_TLM(TLM_encoded *enc, TLM_decoded *dec);
+void encode_Blackbox(TLM_decoded *dec, blackbox_encoded *enc);
+void decode_Blackbox(blackbox_encoded *enc, TLM_decoded *dec);
 void test_TLM();
 #endif /* INC_DRIVERS_TELEMETRY_H_ */

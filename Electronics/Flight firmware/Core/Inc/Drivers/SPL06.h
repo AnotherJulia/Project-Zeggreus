@@ -46,6 +46,8 @@ typedef struct {
     float basepressure;
     float altitude;
 
+    float vertical_speed;
+
 } SPL06;
 
 /*
